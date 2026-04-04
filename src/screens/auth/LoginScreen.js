@@ -1,312 +1,584 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from "react";
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppContext } from '../../context/AppContext';
-import { loginWithPassword, loginOTPRequest, loginOTPVerify } from '../../api/auth';
-import { COLORS } from '../../theme/colors';
-import { FONTS, SIZES, RADIUS } from '../../theme/typography';
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    ScrollView,
+    TextInput,
+    KeyboardAvoidingView,
+    Platform,
+    ActivityIndicator,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAppContext } from "../../context/AppContext";
+import {
+    loginWithPassword,
+    loginOTPRequest,
+    loginOTPVerify,
+} from "../../api/auth";
+import { getPendingUid } from "../../api/client";
+import { COLORS } from "../../theme/colors";
+import { FONTS, SIZES, RADIUS } from "../../theme/typography";
 
-// ─── Sub-screen: OTP Login ────────────────────────────────────────────────────
-function OTPLoginScreen({ onBack, onSuccess }) {
-  const [phone, setPhone]           = useState('');
-  const [otp, setOtp]               = useState(['', '', '', '', '', '']);
-  const [userId, setUserId]         = useState(null);
-  const [step, setStep]             = useState('phone'); // 'phone' | 'otp'
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState('');
-  const [attemptsLeft, setAttempts] = useState(5);
-  const otpRefs                     = Array(6).fill(null).map(() => React.createRef());
+// ─── Reusable small components ────────────────────────────────────────────────
+function ErrorBox({ msg }) {
+    if (!msg) return null;
+    return (
+        <View style={s.errorBox}>
+            <Text style={s.errorText}>⚠️ {msg}</Text>
+        </View>
+    );
+}
 
-  const handleRequestOTP = async () => {
-    setError('');
-    if (!phone.trim()) { setError('Please enter your phone number.'); return; }
-    setLoading(true);
-    const result = await loginOTPRequest({ phone });
-    setLoading(false);
-    if (result.ok) {
-      setUserId(result.data.userId);
-      setStep('otp');
-    } else {
-      setError(result.message);
-    }
-  };
+function InfoBox({ msg }) {
+    if (!msg) return null;
+    return (
+        <View style={s.infoBox}>
+            <Text style={s.infoText}>ℹ️ {msg}</Text>
+        </View>
+    );
+}
 
-  const handleVerifyOTP = async () => {
-    setError('');
-    const otpString = otp.join('');
-    if (otpString.length < 6) { setError('Please enter all 6 digits.'); return; }
-    setLoading(true);
-    const result = await loginOTPVerify({ userId, otp: otpString });
-    setLoading(false);
-    if (result.ok) {
-      onSuccess(result.data);
-    } else {
-      setError(result.message);
-      if (result.data?.attemptsRemaining !== undefined) {
-        setAttempts(result.data.attemptsRemaining);
-      }
-    }
-  };
+// ─── OTP Login Sub-screen ─────────────────────────────────────────────────────
+function OTPLogin({ onBack, onSuccess, onIncomplete }) {
+    const [phone, setPhone] = useState("");
+    const [userId, setUserId] = useState(null);
+    const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+    const [step, setStep] = useState("phone"); // 'phone' | 'otp'
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const refs = useRef([...Array(6)].map(() => React.createRef())).current;
 
-  const handleOTPInput = (val, index) => {
-    const newOtp = [...otp];
-    newOtp[index] = val;
-    setOtp(newOtp);
-    if (val && index < 5) otpRefs[index + 1]?.current?.focus();
-  };
+    const handleRequestOTP = async () => {
+        setError("");
+        if (!phone.trim()) {
+            setError("Enter your phone number.");
+            return;
+        }
+        setLoading(true);
+        const res = await loginOTPRequest({ phone });
+        setLoading(false);
+        if (res.ok) {
+            setUserId(res.data.userId);
+            setStep("otp");
+        } else {
+            setError(res.message);
+        }
+    };
 
-  const handleOTPKeyPress = (e, index) => {
-    if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
-      otpRefs[index - 1]?.current?.focus();
-    }
-  };
+    const handleVerifyOTP = async () => {
+        setError("");
+        const code = otp.join("");
+        if (code.length < 6) {
+            setError("Enter all 6 digits.");
+            return;
+        }
 
-  return (
-    <View style={{ gap: 0 }}>
-      {step === 'phone' ? (
-        <>
-          <View style={styles.inputWrap}>
-            <Text style={styles.inputLabel}>PHONE NUMBER</Text>
-            <View style={styles.inputIcon}>
-              <Text style={styles.inputEmoji}>📱</Text>
-              <TextInput
-                style={styles.input} value={phone} onChangeText={setPhone}
-                placeholder="+91 XXXXX XXXXX" placeholderTextColor={COLORS.text3}
-                keyboardType="phone-pad" autoFocus
-              />
-            </View>
-          </View>
-          {!!error && <Text style={styles.errorText}>{error}</Text>}
-          <TouchableOpacity style={styles.signInBtn} onPress={handleRequestOTP} disabled={loading} activeOpacity={0.85}>
-            {loading
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.signInBtnText}>Send OTP →</Text>}
-          </TouchableOpacity>
-        </>
-      ) : (
-        <>
-          <Text style={styles.sub}>OTP sent to {phone}</Text>
-          <View style={styles.inputWrap}>
-            <Text style={styles.inputLabel}>OTP CODE</Text>
-            <View style={styles.otpRow}>
-              {otp.map((digit, i) => (
-                <TextInput
-                  key={i} ref={otpRefs[i]}
-                  style={styles.otpInput} value={digit}
-                  onChangeText={(v) => handleOTPInput(v, i)}
-                  onKeyPress={(e) => handleOTPKeyPress(e, i)}
-                  maxLength={1} keyboardType="number-pad"
-                  textAlign="center" placeholder="·" placeholderTextColor={COLORS.text3}
-                  autoFocus={i === 0}
-                />
-              ))}
-            </View>
-            {attemptsLeft < 5 && (
-              <Text style={[styles.resendText, { color: COLORS.danger }]}>{attemptsLeft} attempt(s) remaining</Text>
+        const uid = userId || (await getPendingUid());
+        setLoading(true);
+        const res = await loginOTPVerify({ userId: uid, otp: code });
+        setLoading(false);
+
+        if (res.ok) {
+            onSuccess(res.data);
+        } else if (res.incompleteSignup) {
+            onIncomplete({
+                userId: res.userId,
+                nextStep: res.nextStep,
+                message: res.message,
+            });
+        } else {
+            setError(res.message);
+            setOtp(["", "", "", "", "", ""]);
+            refs[0]?.current?.focus();
+        }
+    };
+
+    const handleOTPChange = (val, i) => {
+        const next = [...otp];
+        next[i] = val;
+        setOtp(next);
+        if (val && i < 5) refs[i + 1]?.current?.focus();
+    };
+    const handleOTPKey = (e, i) => {
+        if (e.nativeEvent.key === "Backspace" && !otp[i] && i > 0)
+            refs[i - 1]?.current?.focus();
+    };
+
+    return (
+        <View>
+            {step === "phone" ? (
+                <>
+                    <View style={s.inputWrap}>
+                        <Text style={s.inputLabel}>PHONE NUMBER</Text>
+                        <View style={s.inputRow}>
+                            <Text style={s.emoji}>📱</Text>
+                            <TextInput
+                                style={s.input}
+                                value={phone}
+                                onChangeText={setPhone}
+                                placeholder="+91 XXXXX XXXXX"
+                                placeholderTextColor={COLORS.text3}
+                                keyboardType="phone-pad"
+                                autoFocus
+                            />
+                        </View>
+                    </View>
+                    <ErrorBox msg={error} />
+                    <TouchableOpacity
+                        style={[s.btn, loading && s.btnDim]}
+                        onPress={handleRequestOTP}
+                        disabled={loading}
+                        activeOpacity={0.85}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <Text style={s.btnText}>Send OTP →</Text>
+                        )}
+                    </TouchableOpacity>
+                </>
+            ) : (
+                <>
+                    <Text style={s.otpHint}>OTP sent to {phone}</Text>
+                    <View style={s.otpRow}>
+                        {otp.map((d, i) => (
+                            <TextInput
+                                key={i}
+                                ref={refs[i]}
+                                style={s.otpBox}
+                                value={d}
+                                onChangeText={(v) => handleOTPChange(v, i)}
+                                onKeyPress={(e) => handleOTPKey(e, i)}
+                                maxLength={1}
+                                keyboardType="number-pad"
+                                textAlign="center"
+                                placeholder="·"
+                                placeholderTextColor={COLORS.text3}
+                                autoFocus={i === 0}
+                            />
+                        ))}
+                    </View>
+                    <ErrorBox msg={error} />
+                    <TouchableOpacity
+                        style={[s.btn, loading && s.btnDim]}
+                        onPress={handleVerifyOTP}
+                        disabled={loading}
+                        activeOpacity={0.85}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <Text style={s.btnText}>Verify OTP →</Text>
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => {
+                            setStep("phone");
+                            setOtp(["", "", "", "", "", ""]);
+                            setError("");
+                        }}
+                        style={s.textLink}
+                    >
+                        <Text style={s.textLinkText}>← Change number</Text>
+                    </TouchableOpacity>
+                </>
             )}
-          </View>
-          {!!error && <Text style={styles.errorText}>{error}</Text>}
-          <TouchableOpacity style={styles.signInBtn} onPress={handleVerifyOTP} disabled={loading} activeOpacity={0.85}>
-            {loading
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.signInBtnText}>Verify OTP →</Text>}
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => { setStep('phone'); setOtp(['','','','','','']); setError(''); }} style={{ alignItems: 'center', marginTop: 12 }}>
-            <Text style={styles.forgotText}>← Change Number</Text>
-          </TouchableOpacity>
-        </>
-      )}
-      <TouchableOpacity onPress={onBack} style={{ alignItems: 'center', marginTop: 12 }}>
-        <Text style={[styles.forgotText, { color: COLORS.text2 }]}>← Back to Password Login</Text>
-      </TouchableOpacity>
-    </View>
-  );
+            <TouchableOpacity onPress={onBack} style={s.textLink}>
+                <Text style={[s.textLinkText, { color: COLORS.text2 }]}>
+                    ← Back to password login
+                </Text>
+            </TouchableOpacity>
+        </View>
+    );
 }
 
 // ─── Main LoginScreen ─────────────────────────────────────────────────────────
 export default function LoginScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
-  const { handleAuthSuccess } = useAppContext();
+    const insets = useSafeAreaInsets();
+    const { handleAuthSuccess, handleIncompleteSignup } = useAppContext();
 
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword]     = useState('');
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState('');
-  const [showOTP, setShowOTP]       = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+    const [identifier, setIdentifier] = useState("");
+    const [password, setPassword] = useState("");
+    const [showPw, setShowPw] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [info, setInfo] = useState("");
+    const [showOTP, setShowOTP] = useState(false);
 
-  // ─── Password login ──────────────────────────────────────────────────────────
-  const handlePasswordLogin = async () => {
-    setError('');
-    if (!identifier.trim()) { setError('Please enter your phone or email.'); return; }
-    if (!password)          { setError('Please enter your password.'); return; }
+    const clearMsgs = () => {
+        setError("");
+        setInfo("");
+    };
 
-    setLoading(true);
-    const result = await loginWithPassword({ identifier, password });
-    setLoading(false);
+    // ─── Password login ──────────────────────────────────────────────────────
+    const handleLogin = async () => {
+        clearMsgs();
+        if (!identifier.trim()) {
+            setError("Enter your phone number or email.");
+            return;
+        }
+        if (!password) {
+            setError("Enter your password.");
+            return;
+        }
 
-    if (result.ok) {
-      handleAuthSuccess(result.data);
-    } else {
-      setError(result.message);
-    }
-  };
+        setLoading(true);
+        const res = await loginWithPassword({ identifier, password });
+        setLoading(false);
 
-  // ─── OTP login success ───────────────────────────────────────────────────────
-  const handleOTPSuccess = (data) => {
-    handleAuthSuccess(data);
-  };
+        if (res.ok) {
+            // Fully registered — go to app
+            handleAuthSuccess(res.data);
+            return;
+        }
 
-  return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Top art */}
-      <LinearGradient colors={['#0a1f16', '#1a7a5e']} style={[styles.topArt, { paddingTop: insets.top + 20 }]}>
-        <View style={styles.topIcon}><Text style={{ fontSize: 30 }}>💸</Text></View>
-        <Text style={styles.topName}>Hisaab</Text>
-        <Text style={styles.topSub}>Welcome back 👋</Text>
-      </LinearGradient>
+        if (res.incompleteSignup) {
+            // User started signup but never finished.
+            // Store in context and navigate them to the correct signup step.
+            handleIncompleteSignup({
+                userId: res.userId,
+                nextStep: res.nextStep,
+            });
+            navigation.navigate("Signup", {
+                resume: { userId: res.userId, nextStep: res.nextStep },
+            });
+            return;
+        }
 
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Sign In</Text>
-        <Text style={styles.sub}>Enter your phone number or email to continue</Text>
+        setError(res.message);
+    };
 
-        {showOTP ? (
-          <OTPLoginScreen onBack={() => { setShowOTP(false); setError(''); }} onSuccess={handleOTPSuccess} />
-        ) : (
-          <>
-            {/* Identifier */}
-            <View style={styles.inputWrap}>
-              <Text style={styles.inputLabel}>PHONE OR EMAIL</Text>
-              <View style={styles.inputIcon}>
-                <Text style={styles.inputEmoji}>📱</Text>
-                <TextInput
-                  style={styles.input} value={identifier} onChangeText={setIdentifier}
-                  placeholder="+91 XXXXX XXXXX or email" placeholderTextColor={COLORS.text3}
-                  keyboardType="email-address" autoCapitalize="none" autoCorrect={false}
-                />
-              </View>
-            </View>
+    // ─── OTP login success ───────────────────────────────────────────────────
+    const handleOTPSuccess = (data) => handleAuthSuccess(data);
 
-            {/* Password */}
-            <View style={styles.inputWrap}>
-              <Text style={styles.inputLabel}>PASSWORD</Text>
-              <View style={styles.inputIcon}>
-                <Text style={styles.inputEmoji}>🔒</Text>
-                <TextInput
-                  style={styles.input} value={password} onChangeText={setPassword}
-                  placeholder="Enter your password" placeholderTextColor={COLORS.text3}
-                  secureTextEntry={!showPassword}
-                />
-                <TouchableOpacity onPress={() => setShowPassword((v) => !v)}>
-                  <Text style={{ fontSize: 16 }}>{showPassword ? '🙈' : '👁'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+    // ─── OTP login → incomplete signup ───────────────────────────────────────
+    const handleOTPIncomplete = ({ userId, nextStep, message }) => {
+        handleIncompleteSignup({ userId, nextStep });
+        navigation.navigate("Signup", {
+            resume: { userId, nextStep },
+        });
+    };
 
-            <TouchableOpacity style={styles.forgotRow}>
-              <Text style={styles.forgotText}>Forgot Password?</Text>
-            </TouchableOpacity>
-
-            {/* Error */}
-            {!!error && <Text style={styles.errorText}>{error}</Text>}
-
-            {/* Sign In */}
-            <TouchableOpacity
-              style={[styles.signInBtn, loading && styles.signInBtnDisabled]}
-              onPress={handlePasswordLogin}
-              disabled={loading}
-              activeOpacity={0.85}
+    return (
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+            {/* Art header */}
+            <LinearGradient
+                colors={["#0a1f16", "#1a7a5e"]}
+                style={[s.topArt, { paddingTop: insets.top + 20 }]}
             >
-              {loading
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.signInBtnText}>Sign In →</Text>}
-            </TouchableOpacity>
+                <View style={s.logoBox}>
+                    <Text style={{ fontSize: 30 }}>💸</Text>
+                </View>
+                <Text style={s.logoName}>Hisaab</Text>
+                <Text style={s.logoSub}>Welcome back 👋</Text>
+            </LinearGradient>
 
-            {/* Divider */}
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or continue with</Text>
-              <View style={styles.dividerLine} />
-            </View>
+            <ScrollView
+                style={s.body}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+            >
+                <Text style={s.title}>Sign In</Text>
+                <Text style={s.sub}>Enter your phone or email to continue</Text>
 
-            {/* OTP Login */}
-            <TouchableOpacity style={styles.otpLoginBtn} onPress={() => { setShowOTP(true); setError(''); }} activeOpacity={0.85}>
-              <Text style={styles.otpLoginBtnText}>📱 Login with OTP</Text>
-            </TouchableOpacity>
-          </>
-        )}
+                {showOTP ? (
+                    <OTPLogin
+                        onBack={() => {
+                            setShowOTP(false);
+                            clearMsgs();
+                        }}
+                        onSuccess={handleOTPSuccess}
+                        onIncomplete={handleOTPIncomplete}
+                    />
+                ) : (
+                    <>
+                        {/* Identifier input */}
+                        <View style={s.inputWrap}>
+                            <Text style={s.inputLabel}>PHONE OR EMAIL</Text>
+                            <View style={s.inputRow}>
+                                <Text style={s.emoji}>📱</Text>
+                                <TextInput
+                                    style={s.input}
+                                    value={identifier}
+                                    onChangeText={setIdentifier}
+                                    placeholder="+91 XXXXX XXXXX or email"
+                                    placeholderTextColor={COLORS.text3}
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                />
+                            </View>
+                        </View>
 
-        <View style={styles.switchRow}>
-          <Text style={styles.switchText}>Don't have an account? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-            <Text style={styles.switchLink}>Sign Up</Text>
-          </TouchableOpacity>
-        </View>
+                        {/* Password input */}
+                        <View style={s.inputWrap}>
+                            <Text style={s.inputLabel}>PASSWORD</Text>
+                            <View style={s.inputRow}>
+                                <Text style={s.emoji}>🔒</Text>
+                                <TextInput
+                                    style={s.input}
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    placeholder="Enter your password"
+                                    placeholderTextColor={COLORS.text3}
+                                    secureTextEntry={!showPw}
+                                />
+                                <TouchableOpacity
+                                    onPress={() => setShowPw((v) => !v)}
+                                >
+                                    <Text style={{ fontSize: 16 }}>
+                                        {showPw ? "🙈" : "👁"}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
+                        <TouchableOpacity style={s.forgotRow}>
+                            <Text style={s.forgotText}>Forgot Password?</Text>
+                        </TouchableOpacity>
+
+                        <ErrorBox msg={error} />
+                        <InfoBox msg={info} />
+
+                        {/* Sign In button */}
+                        <TouchableOpacity
+                            style={[s.btn, loading && s.btnDim]}
+                            onPress={handleLogin}
+                            disabled={loading}
+                            activeOpacity={0.85}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <Text style={s.btnText}>Sign In →</Text>
+                            )}
+                        </TouchableOpacity>
+
+                        {/* Divider */}
+                        <View style={s.divRow}>
+                            <View style={s.divLine} />
+                            <Text style={s.divText}>or</Text>
+                            <View style={s.divLine} />
+                        </View>
+
+                        {/* OTP Login */}
+                        <TouchableOpacity
+                            style={s.outlineBtn}
+                            onPress={() => {
+                                setShowOTP(true);
+                                clearMsgs();
+                            }}
+                            activeOpacity={0.85}
+                        >
+                            <Text style={s.outlineBtnText}>
+                                📱 Login with OTP
+                            </Text>
+                        </TouchableOpacity>
+                    </>
+                )}
+
+                {/* Switch to Signup */}
+                <View style={s.switchRow}>
+                    <Text style={s.switchTxt}>Don't have an account? </Text>
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate("Signup")}
+                    >
+                        <Text style={s.switchLink}>Sign Up</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <View style={{ height: 40 }} />
+            </ScrollView>
+        </KeyboardAvoidingView>
+    );
 }
 
-const styles = StyleSheet.create({
-  topArt: { paddingBottom: 28, alignItems: 'center', gap: 8 },
-  topIcon: {
-    width: 60, height: 60, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.3)', alignItems: 'center', justifyContent: 'center',
-  },
-  topName: { fontFamily: FONTS.nunito.black, fontSize: 22, color: '#fff' },
-  topSub:  { fontFamily: FONTS.dmSans.regular, fontSize: SIZES.base, color: 'rgba(255,255,255,0.65)' },
-  body:    { flex: 1, backgroundColor: COLORS.bg, paddingHorizontal: 24, paddingTop: 28 },
-  title:   { fontFamily: FONTS.nunito.black, fontSize: SIZES.xxl, color: COLORS.text, marginBottom: 4 },
-  sub:     { fontFamily: FONTS.dmSans.regular, fontSize: SIZES.md, color: COLORS.text2, marginBottom: 24 },
-  inputWrap: { marginBottom: 14 },
-  inputLabel: {
-    fontFamily: FONTS.nunito.bold, fontSize: SIZES.sm2,
-    color: COLORS.text2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6,
-  },
-  inputIcon: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: COLORS.border,
-    borderRadius: RADIUS.lg, paddingHorizontal: 14, paddingVertical: 12, gap: 10,
-  },
-  inputEmoji: { fontSize: 18 },
-  input: { flex: 1, fontFamily: FONTS.dmSans.regular, fontSize: SIZES.md2, color: COLORS.text },
-  forgotRow: { alignItems: 'flex-end', marginBottom: 18, marginTop: -6 },
-  forgotText: { fontFamily: FONTS.nunito.bold, fontSize: SIZES.base, color: COLORS.primary },
-  errorText: {
-    fontFamily: FONTS.dmSans.regular, fontSize: SIZES.base, color: COLORS.danger,
-    marginBottom: 12, paddingHorizontal: 4,
-    backgroundColor: '#FEF2F2', borderRadius: 8, padding: 10,
-    borderLeftWidth: 3, borderLeftColor: COLORS.danger,
-  },
-  signInBtn: {
-    backgroundColor: COLORS.primary, borderRadius: RADIUS.xl,
-    padding: 14, alignItems: 'center',
-  },
-  signInBtnDisabled: { opacity: 0.7 },
-  signInBtnText: { fontFamily: FONTS.nunito.extraBold, fontSize: SIZES.md2, color: '#fff', letterSpacing: 0.2 },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 18 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
-  dividerText: { fontFamily: FONTS.dmSans.regular, fontSize: SIZES.base, color: COLORS.text3 },
-  otpLoginBtn: {
-    borderWidth: 1.5, borderColor: COLORS.primary, borderRadius: RADIUS.xl,
-    padding: 13, alignItems: 'center', backgroundColor: '#fff',
-  },
-  otpLoginBtnText: { fontFamily: FONTS.nunito.extraBold, fontSize: SIZES.md2, color: COLORS.primary },
-  switchRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 18 },
-  switchText: { fontFamily: FONTS.dmSans.regular, fontSize: SIZES.md, color: COLORS.text2 },
-  switchLink: { fontFamily: FONTS.nunito.bold, fontSize: SIZES.md, color: COLORS.primary },
-  otpRow: { flexDirection: 'row', gap: 8, marginBottom: 6 },
-  otpInput: {
-    width: 42, height: 48, backgroundColor: '#fff', borderWidth: 1.5,
-    borderColor: COLORS.border, borderRadius: RADIUS.lg,
-    fontFamily: FONTS.nunito.extraBold, fontSize: 20, color: COLORS.text,
-  },
-  resendText: { fontFamily: FONTS.dmSans.regular, fontSize: SIZES.base, marginTop: 6 },
+const s = StyleSheet.create({
+    topArt: { paddingBottom: 28, alignItems: "center", gap: 8 },
+    logoBox: {
+        width: 60,
+        height: 60,
+        borderRadius: 20,
+        backgroundColor: "rgba(255,255,255,0.18)",
+        borderWidth: 1.5,
+        borderColor: "rgba(255,255,255,0.3)",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    logoName: { fontFamily: FONTS.nunito.black, fontSize: 22, color: "#fff" },
+    logoSub: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: "rgba(255,255,255,0.65)",
+    },
+    body: {
+        flex: 1,
+        backgroundColor: COLORS.bg,
+        paddingHorizontal: 24,
+        paddingTop: 28,
+    },
+    title: {
+        fontFamily: FONTS.nunito.black,
+        fontSize: SIZES.xxl,
+        color: COLORS.text,
+        marginBottom: 4,
+    },
+    sub: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.md,
+        color: COLORS.text2,
+        marginBottom: 24,
+    },
+
+    inputWrap: { marginBottom: 14 },
+    inputLabel: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.sm2,
+        color: COLORS.text2,
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
+        marginBottom: 6,
+    },
+    inputRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        backgroundColor: "#fff",
+        borderWidth: 1.5,
+        borderColor: COLORS.border,
+        borderRadius: RADIUS.lg,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+    },
+    emoji: { fontSize: 18 },
+    input: {
+        flex: 1,
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.md2,
+        color: COLORS.text,
+    },
+
+    forgotRow: { alignItems: "flex-end", marginBottom: 16, marginTop: -4 },
+    forgotText: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.base,
+        color: COLORS.primary,
+    },
+
+    errorBox: {
+        backgroundColor: "#FEF2F2",
+        borderRadius: 8,
+        padding: 10,
+        borderLeftWidth: 3,
+        borderLeftColor: COLORS.danger,
+        marginBottom: 12,
+    },
+    errorText: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: COLORS.danger,
+        lineHeight: 20,
+    },
+
+    infoBox: {
+        backgroundColor: "#EFF6FF",
+        borderRadius: 8,
+        padding: 10,
+        borderLeftWidth: 3,
+        borderLeftColor: COLORS.blue,
+        marginBottom: 12,
+    },
+    infoText: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: "#1D4ED8",
+        lineHeight: 20,
+    },
+
+    btn: {
+        backgroundColor: COLORS.primary,
+        borderRadius: RADIUS.xl,
+        padding: 14,
+        alignItems: "center",
+    },
+    btnDim: { opacity: 0.65 },
+    btnText: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.md2,
+        color: "#fff",
+    },
+
+    outlineBtn: {
+        borderWidth: 1.5,
+        borderColor: COLORS.primary,
+        borderRadius: RADIUS.xl,
+        padding: 13,
+        alignItems: "center",
+    },
+    outlineBtnText: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.md2,
+        color: COLORS.primary,
+    },
+
+    divRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        marginVertical: 16,
+    },
+    divLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
+    divText: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: COLORS.text3,
+    },
+
+    switchRow: {
+        flexDirection: "row",
+        justifyContent: "center",
+        marginTop: 18,
+    },
+    switchTxt: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.md,
+        color: COLORS.text2,
+    },
+    switchLink: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.md,
+        color: COLORS.primary,
+    },
+
+    // OTP
+    otpHint: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: COLORS.text2,
+        marginBottom: 10,
+    },
+    otpRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
+    otpBox: {
+        width: 42,
+        height: 48,
+        backgroundColor: "#fff",
+        borderWidth: 1.5,
+        borderColor: COLORS.border,
+        borderRadius: RADIUS.lg,
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: 20,
+        color: COLORS.text,
+    },
+    textLink: { alignItems: "center", marginTop: 10 },
+    textLinkText: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.base,
+        color: COLORS.primary,
+    },
 });

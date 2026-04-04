@@ -1,138 +1,163 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loadSession, clearSession, STORAGE_KEYS } from '../api/client';
-import { logoutFromServer } from '../api/auth';
+import React, {
+    createContext,
+    useContext,
+    useState,
+    useEffect,
+    useCallback,
+} from "react";
+import { loadSession, clearSession, saveSession, STORAGE } from "../api/client";
+import { logoutFromServer } from "../api/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const AppContext = createContext(null);
 
+// ─── Map API user object → internal shape ─────────────────────────────────────
+function buildUser(apiUser) {
+    const name = apiUser?.name || "";
+    const initials =
+        name
+            .split(" ")
+            .filter(Boolean)
+            .map((w) => w[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2) || "HI";
+
+    return {
+        id: apiUser?.id || apiUser?._id || null,
+        name,
+        initials,
+        email: apiUser?.email || "",
+        phone: apiUser?.phone || "",
+        avatar: apiUser?.avatar || "😎",
+        avatarColor: apiUser?.avatarColor || "#1a7a5e",
+        useCase: apiUser?.useCase || "both",
+    };
+}
+
 export function AppProvider({ children }) {
-  // ─── Auth state ──────────────────────────────────────────────────────────────
-  const [isAuthenticated, setIsAuthenticated]   = useState(false);
-  const [isLoadingSession, setIsLoadingSession] = useState(true);
-  const [accessToken, setAccessToken]           = useState(null);
-  const [refreshToken, setRefreshToken]         = useState(null);
+    // ─── Core auth ────────────────────────────────────────────────────────────
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isLoadingSession, setIsLoadingSession] = useState(true);
 
-  // ─── User state ──────────────────────────────────────────────────────────────
-  const [user, setUser] = useState({
-    id: null,
-    name: '',
-    email: '',
-    phone: '',
-    avatar: '😎',
-    avatarColor: '#1a7a5e',
-    useCase: 'both',
-    initials: 'RK',
-    role: '',
-  });
+    // ─── User ─────────────────────────────────────────────────────────────────
+    const [user, setUser] = useState(buildUser(null));
+    const useCase = user.useCase || "both";
 
-  const useCase = user.useCase || 'both';
+    // ─── Incomplete signup resume state ───────────────────────────────────────
+    // When a user who started-but-never-finished signup tries to login,
+    // backend returns { incompleteSignup: true, userId, nextStep }.
+    // We store this here so the navigator can route them to the right step.
+    const [resumeSignup, setResumeSignup] = useState(null);
+    // resumeSignup shape: { userId, nextStep: 'verify-otp' | 'set-password' | 'complete-profile' }
 
-  // ─── Restore session from AsyncStorage on app launch ─────────────────────────
-  useEffect(() => {
-    (async () => {
-      try {
-        const session = await loadSession();
-        if (session.accessToken && session.user) {
-          setAccessToken(session.accessToken);
-          setRefreshToken(session.refreshToken);
-          setUser(buildUserState(session.user));
-          setIsAuthenticated(true);
-        }
-      } catch (e) {
-        console.warn('Session restore error:', e);
-      } finally {
-        setIsLoadingSession(false);
-      }
-    })();
-  }, []);
+    // ─── Restore persisted session on app launch ──────────────────────────────
+    useEffect(() => {
+        (async () => {
+            try {
+                const session = await loadSession();
+                if (session.accessToken && session.user) {
+                    setUser(buildUser(session.user));
+                    setIsAuthenticated(true);
+                }
+            } catch (e) {
+                console.warn("[AppContext] session restore error:", e);
+            } finally {
+                setIsLoadingSession(false);
+            }
+        })();
+    }, []);
 
-  // ─── Called after successful login or signup complete ─────────────────────────
-  const handleAuthSuccess = useCallback((data) => {
-    setAccessToken(data.accessToken);
-    setRefreshToken(data.refreshToken);
-    setUser(buildUserState(data.user));
-    setIsAuthenticated(true);
-  }, []);
+    // ─── Called after any successful login or signup complete ─────────────────
+    // data = { accessToken, refreshToken, user } from API
+    const handleAuthSuccess = useCallback((data) => {
+        setUser(buildUser(data.user));
+        setIsAuthenticated(true);
+        setResumeSignup(null); // clear any pending resume
+    }, []);
 
-  // ─── Logout ───────────────────────────────────────────────────────────────────
-  const logout = useCallback(async () => {
-    try {
-      await logoutFromServer();
-    } catch (_) {}
-    await clearSession();
-    setAccessToken(null);
-    setRefreshToken(null);
-    setIsAuthenticated(false);
-    setUser({
-      id: null, name: '', email: '', phone: '',
-      avatar: '😎', avatarColor: '#1a7a5e',
-      useCase: 'both', initials: '', role: '',
-    });
-  }, []);
+    // ─── Called when login detects incomplete signup ──────────────────────────
+    // Stores the resume info so the navigator shows Signup at the right step
+    const handleIncompleteSignup = useCallback(({ userId, nextStep }) => {
+        setResumeSignup({ userId, nextStep });
+    }, []);
 
-  // ─── Update useCase ───────────────────────────────────────────────────────────
-  const setUseCase = useCallback((newUseCase) => {
-    setUser((prev) => ({ ...prev, useCase: newUseCase }));
-  }, []);
+    // ─── Clear resume signup state (e.g. user cancels) ───────────────────────
+    const clearResumeSignup = useCallback(() => {
+        setResumeSignup(null);
+    }, []);
 
-  // ─── Update user fields ───────────────────────────────────────────────────────
-  const updateUser = useCallback((fields) => {
-    setUser((prev) => {
-      const updated = { ...prev, ...fields };
-      AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated)).catch(() => {});
-      return updated;
-    });
-  }, []);
+    // ─── Logout ───────────────────────────────────────────────────────────────
+    const logout = useCallback(async () => {
+        try {
+            await logoutFromServer();
+        } catch (_) {}
+        await clearSession();
+        setIsAuthenticated(false);
+        setUser(buildUser(null));
+        setResumeSignup(null);
+    }, []);
 
-  return (
-    <AppContext.Provider value={{
-      isAuthenticated,
-      isLoadingSession,
-      accessToken,
-      refreshToken,
-      handleAuthSuccess,
-      logout,
-      user,
-      useCase,
-      updateUser,
-      setUseCase,
-    }}>
-      {children}
-    </AppContext.Provider>
-  );
+    // ─── Update useCase locally (e.g. after profile edit) ────────────────────
+    const setUseCase = useCallback((newUseCase) => {
+        setUser((prev) => {
+            const updated = { ...prev, useCase: newUseCase };
+            // Persist the change
+            AsyncStorage.getItem(STORAGE.USER).then((raw) => {
+                if (raw) {
+                    const stored = JSON.parse(raw);
+                    AsyncStorage.setItem(
+                        STORAGE.USER,
+                        JSON.stringify({ ...stored, useCase: newUseCase }),
+                    );
+                }
+            });
+            return updated;
+        });
+    }, []);
+
+    // ─── Update any user fields locally ──────────────────────────────────────
+    const updateUser = useCallback((fields) => {
+        setUser((prev) => {
+            const updated = { ...prev, ...fields };
+            AsyncStorage.getItem(STORAGE.USER).then((raw) => {
+                const stored = raw ? JSON.parse(raw) : {};
+                AsyncStorage.setItem(
+                    STORAGE.USER,
+                    JSON.stringify({ ...stored, ...fields }),
+                );
+            });
+            return updated;
+        });
+    }, []);
+
+    return (
+        <AppContext.Provider
+            value={{
+                // Auth state
+                isAuthenticated,
+                isLoadingSession,
+                // User
+                user,
+                useCase,
+                updateUser,
+                setUseCase,
+                // Auth actions
+                handleAuthSuccess,
+                logout,
+                // Incomplete signup resume
+                resumeSignup,
+                handleIncompleteSignup,
+                clearResumeSignup,
+            }}
+        >
+            {children}
+        </AppContext.Provider>
+    );
 }
 
 export function useAppContext() {
-  const ctx = useContext(AppContext);
-  if (!ctx) throw new Error('useAppContext must be used inside AppProvider');
-  return ctx;
-}
-
-// ─── Map API user → local state shape ────────────────────────────────────────
-function buildUserState(apiUser) {
-  const name = apiUser.name || '';
-  const initials = name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2) || 'HI';
-
-  const roleMap = {
-    freelance: 'Freelancer',
-    split:     'Expense Tracker',
-    both:      'Freelancer',
-  };
-
-  return {
-    id:          apiUser.id || apiUser._id || null,
-    name,
-    email:       apiUser.email || '',
-    phone:       apiUser.phone || '',
-    avatar:      apiUser.avatar || '😎',
-    avatarColor: apiUser.avatarColor || '#1a7a5e',
-    useCase:     apiUser.useCase || 'both',
-    role:        roleMap[apiUser.useCase] || 'Freelancer',
-    initials,
-  };
+    const ctx = useContext(AppContext);
+    if (!ctx) throw new Error("useAppContext must be inside AppProvider");
+    return ctx;
 }

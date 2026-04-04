@@ -1,15 +1,17 @@
-import { apiCall, saveSession, savePendingUserId } from "./client";
+import {
+    apiCall,
+    saveSession,
+    savePendingUid,
+    clearPendingUid,
+} from "./client";
 import { ENDPOINTS } from "./config";
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  SIGNUP FLOW
+//  SIGNUP — Step 1
+//  POST /api/auth/signup/step1
+//  Body:    { name, phone?, email? }
+//  Returns: { userId, nextStep: 'verify-otp' | 'set-password' }
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Step 1 — Save basic info + send OTP to phone
- * Body: { name, phone?, email? }
- * Success data: { userId, nextStep }
- */
 export async function signupStep1({ name, phone, email }) {
     const body = { name: name.trim() };
     if (phone?.trim()) body.phone = phone.trim();
@@ -19,21 +21,19 @@ export async function signupStep1({ name, phone, email }) {
         method: "POST",
         body,
     });
-    console.log(result);
 
-    // Persist userId so next steps can use it
     if (result.ok && result.data?.userId) {
-        await savePendingUserId(result.data.userId);
+        await savePendingUid(result.data.userId);
     }
-
     return result;
 }
 
-/**
- * Step 2a — Verify OTP sent to phone
- * Body: { userId, otp }
- * Success data: { userId, nextStep: 'set-password' }
- */
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SIGNUP — Verify OTP
+//  POST /api/auth/signup/verify-otp
+//  Body:    { userId, otp }
+//  Returns: { userId, nextStep: 'set-password' }
+// ═══════════════════════════════════════════════════════════════════════════════
 export async function signupVerifyOTP({ userId, otp }) {
     return apiCall(ENDPOINTS.SIGNUP_VERIFY_OTP, {
         method: "POST",
@@ -41,10 +41,11 @@ export async function signupVerifyOTP({ userId, otp }) {
     });
 }
 
-/**
- * Step 2a — Resend OTP
- * Body: { userId }
- */
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SIGNUP — Resend OTP
+//  POST /api/auth/signup/resend-otp
+//  Body:    { userId }
+// ═══════════════════════════════════════════════════════════════════════════════
 export async function signupResendOTP({ userId }) {
     return apiCall(ENDPOINTS.SIGNUP_RESEND_OTP, {
         method: "POST",
@@ -52,11 +53,12 @@ export async function signupResendOTP({ userId }) {
     });
 }
 
-/**
- * Step 2b — Set password after OTP verified
- * Body: { userId, password, confirmPassword }
- * Success data: { userId, nextStep: 'complete-profile' }
- */
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SIGNUP — Set Password
+//  POST /api/auth/signup/set-password
+//  Body:    { userId, password, confirmPassword }
+//  Returns: { userId, nextStep: 'complete-profile' }
+// ═══════════════════════════════════════════════════════════════════════════════
 export async function signupSetPassword({ userId, password, confirmPassword }) {
     return apiCall(ENDPOINTS.SIGNUP_SET_PASSWORD, {
         method: "POST",
@@ -64,11 +66,12 @@ export async function signupSetPassword({ userId, password, confirmPassword }) {
     });
 }
 
-/**
- * Step 3 — Complete profile → returns tokens
- * Body: { userId, avatar?, useCase }
- * Success data: { accessToken, refreshToken, user }
- */
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SIGNUP — Complete Profile (Step 3 — issues tokens)
+//  POST /api/auth/signup/complete-profile
+//  Body:    { userId, avatar?, avatarColor?, useCase }
+//  Returns: { accessToken, refreshToken, expiresIn, user }
+// ═══════════════════════════════════════════════════════════════════════════════
 export async function signupCompleteProfile({ userId, avatar, useCase }) {
     const body = { userId, useCase };
     if (avatar) body.avatar = avatar;
@@ -78,23 +81,21 @@ export async function signupCompleteProfile({ userId, avatar, useCase }) {
         body,
     });
 
-    // Save session on success
     if (result.ok && result.data) {
         await saveSession(result.data);
+        await clearPendingUid();
     }
-
     return result;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  LOGIN
+//  LOGIN — Password
+//  POST /api/auth/login/password
+//  Body:    { identifier, password }
+//  Returns:
+//    Success → { accessToken, refreshToken, expiresIn, user }
+//    Incomplete signup → ok:false + incompleteSignup:true + userId + nextStep
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Login with phone/email + password
- * Body: { identifier, password }
- * Success data: { accessToken, refreshToken, user }
- */
 export async function loginWithPassword({ identifier, password }) {
     const result = await apiCall(ENDPOINTS.LOGIN_PASSWORD, {
         method: "POST",
@@ -103,16 +104,23 @@ export async function loginWithPassword({ identifier, password }) {
 
     if (result.ok && result.data) {
         await saveSession(result.data);
+        await clearPendingUid();
+    }
+
+    // If incomplete signup — save userId so resume flow can use it
+    if (!result.ok && result.incompleteSignup && result.userId) {
+        await savePendingUid(result.userId);
     }
 
     return result;
 }
 
-/**
- * Request OTP for phone login
- * Body: { phone }
- * Success data: { userId }
- */
+// ═══════════════════════════════════════════════════════════════════════════════
+//  LOGIN — OTP Request
+//  POST /api/auth/login/otp/request
+//  Body:    { phone }
+//  Returns: { userId }
+// ═══════════════════════════════════════════════════════════════════════════════
 export async function loginOTPRequest({ phone }) {
     const result = await apiCall(ENDPOINTS.LOGIN_OTP_REQUEST, {
         method: "POST",
@@ -120,17 +128,19 @@ export async function loginOTPRequest({ phone }) {
     });
 
     if (result.ok && result.data?.userId) {
-        await savePendingUserId(result.data.userId);
+        await savePendingUid(result.data.userId);
     }
-
     return result;
 }
 
-/**
- * Verify OTP for phone login → returns tokens
- * Body: { userId, otp }
- * Success data: { accessToken, refreshToken, user }
- */
+// ═══════════════════════════════════════════════════════════════════════════════
+//  LOGIN — OTP Verify
+//  POST /api/auth/login/otp/verify
+//  Body:    { userId, otp }
+//  Returns:
+//    Success → { accessToken, refreshToken, expiresIn, user }
+//    Incomplete signup → ok:false + incompleteSignup:true + userId + nextStep
+// ═══════════════════════════════════════════════════════════════════════════════
 export async function loginOTPVerify({ userId, otp }) {
     const result = await apiCall(ENDPOINTS.LOGIN_OTP_VERIFY, {
         method: "POST",
@@ -139,19 +149,22 @@ export async function loginOTPVerify({ userId, otp }) {
 
     if (result.ok && result.data) {
         await saveSession(result.data);
+        await clearPendingUid();
+    }
+
+    if (!result.ok && result.incompleteSignup && result.userId) {
+        await savePendingUid(result.userId);
     }
 
     return result;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  FORGOT / RESET PASSWORD
+//  FORGOT PASSWORD
+//  POST /api/auth/forgot-password
+//  Body: { identifier }  — phone or email
+//  Always returns 200 (prevents user enumeration)
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Send reset OTP to phone or email
- * Body: { identifier }
- */
 export async function forgotPassword({ identifier }) {
     return apiCall(ENDPOINTS.FORGOT_PASSWORD, {
         method: "POST",
@@ -159,10 +172,11 @@ export async function forgotPassword({ identifier }) {
     });
 }
 
-/**
- * Reset password with OTP
- * Body: { userId, otp, newPassword, confirmPassword }
- */
+// ═══════════════════════════════════════════════════════════════════════════════
+//  RESET PASSWORD
+//  POST /api/auth/reset-password
+//  Body: { userId, otp, newPassword, confirmPassword }
+// ═══════════════════════════════════════════════════════════════════════════════
 export async function resetPassword({
     userId,
     otp,
@@ -173,22 +187,17 @@ export async function resetPassword({
         method: "POST",
         body: { userId, otp: otp.trim(), newPassword, confirmPassword },
     });
-
     if (result.ok && result.data) {
         await saveSession(result.data);
     }
-
     return result;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  SESSION
+//  REFRESH TOKEN
+//  POST /api/auth/refresh
+//  Body: { userId, refreshToken }
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Refresh access token using refresh token
- * Body: { userId, refreshToken }
- */
 export async function refreshAccessToken({ userId, refreshToken }) {
     return apiCall(ENDPOINTS.REFRESH_TOKEN, {
         method: "POST",
@@ -196,18 +205,18 @@ export async function refreshAccessToken({ userId, refreshToken }) {
     });
 }
 
-/**
- * Logout — invalidates tokens on server
- * Requires auth header
- */
+// ═══════════════════════════════════════════════════════════════════════════════
+//  LOGOUT
+//  POST /api/auth/logout  (requires auth header)
+// ═══════════════════════════════════════════════════════════════════════════════
 export async function logoutFromServer() {
     return apiCall(ENDPOINTS.LOGOUT, { method: "POST", auth: true });
 }
 
-/**
- * Get current user profile
- * Requires auth header
- */
+// ═══════════════════════════════════════════════════════════════════════════════
+//  GET PROFILE
+//  GET /api/auth/me  (requires auth header)
+// ═══════════════════════════════════════════════════════════════════════════════
 export async function getMe() {
     return apiCall(ENDPOINTS.ME, { method: "GET", auth: true });
 }

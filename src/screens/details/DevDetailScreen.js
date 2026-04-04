@@ -1,220 +1,672 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import SinglePayPopup from '../../components/shared/popups/SinglePayPopup';
-import { DeleteConfirmPopup } from '../../components/shared/popups/ConfirmPopups';
-import { COLORS, SHADOWS } from '../../theme/colors';
-import { FONTS, SIZES, RADIUS } from '../../theme/typography';
-import { DEVELOPERS } from '../../data/mockData';
+import React, { useState, useEffect, useCallback } from "react";
+import {
+    View,
+    Text,
+    ScrollView,
+    TouchableOpacity,
+    StyleSheet,
+    ActivityIndicator,
+    RefreshControl,
+    Alert,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import SinglePayPopup from "../../components/shared/popups/SinglePayPopup";
+import { DeleteConfirmPopup } from "../../components/shared/popups/ConfirmPopups";
+import { COLORS, SHADOWS } from "../../theme/colors";
+import { FONTS, SIZES, RADIUS } from "../../theme/typography";
+import {
+    fetchDeveloper,
+    fetchDevPaymentHistory,
+    deleteDeveloper,
+    getDevInitials,
+    getDevColor,
+} from "../../api/developers";
 
-const PAY_STATUS_CONFIG = {
-  'paid-full': { bg: '#D1FAE5', text: '#065F46', label: 'Paid ✅' },
-  'paid-partial': { bg: '#FEF3C7', text: '#92400E', label: 'Partial' },
-  unpaid: { bg: '#FEE2E2', text: '#991B1B', label: 'Unpaid' },
+const METHOD_ICONS = { upi: "📱", cash: "💵", bank: "🏦", other: "💰" };
+
+const PROJECT_STATUS = {
+    completed: { bg: "#D1FAE5", text: "#065F46", label: "Paid ✅" },
+    inprogress: { bg: "#FEF3C7", text: "#92400E", label: "Partial" },
+    onstay: { bg: "#FEE2E2", text: "#991B1B", label: "Pending" },
+    inactive: { bg: "#F3F4F6", text: "#6B7280", label: "Inactive" },
+    cancelled: { bg: "#FEE2E2", text: "#991B1B", label: "Cancelled" },
 };
 
 export default function DevDetailScreen({ navigation, route }) {
-  const insets = useSafeAreaInsets();
-  const { devId } = route.params || {};
-  const dev = DEVELOPERS.find((d) => d.id === devId) || DEVELOPERS[0];
+    const insets = useSafeAreaInsets();
+    const { devId } = route.params || {};
 
-  const [payPopup, setPayPopup] = useState(null);
-  const [deletePopup, setDeletePopup] = useState(false);
+    const [dev, setDev] = useState(null);
+    const [projects, setProjects] = useState([]);
+    const [history, setHistory] = useState([]);
+    const [histStats, setHistStats] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [payPopup, setPayPopup] = useState(null);
+    const [deletePopup, setDeletePopup] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
-  const totalAgreed = dev.totalPaid + dev.pending;
-  const payPct = totalAgreed > 0 ? Math.round((dev.totalPaid / totalAgreed) * 100) : 0;
+    const loadData = useCallback(async () => {
+        setLoading(true);
+        setError("");
 
-  return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={COLORS.gradientAmber}
-        start={{ x: 0.13, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.header, { paddingTop: insets.top + 6 }]}
-      >
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <View style={[styles.devAv, { backgroundColor: dev.color }]}>
-              <Text style={styles.devAvText}>{dev.initials}</Text>
-            </View>
-            <View>
-              <Text style={styles.devName}>{dev.name}</Text>
-              <Text style={styles.devRole}>{dev.role} · {dev.status === 'active' ? 'Active' : 'Inactive'}</Text>
-              <Text style={styles.devPhone}>{dev.phone}</Text>
-            </View>
-          </View>
-          <View style={styles.headerBtns}>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('EditDev', { devId: dev.id })}
-              style={styles.hdrBtn}><Text>✏️</Text></TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('DevStatus', { devId: dev.id })}
-              style={styles.hdrBtn}><Text>🔄</Text></TouchableOpacity>
-          </View>
-        </View>
-      </LinearGradient>
+        const [devRes, histRes] = await Promise.all([
+            fetchDeveloper(devId),
+            fetchDevPaymentHistory(devId),
+        ]);
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.body}>
-          {/* Payment Summary */}
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => navigation.navigate('DevPaymentPage', { devId: dev.id })}
-            activeOpacity={0.85}
-          >
-            <View style={styles.cardTitleRow}>
-              <Text style={styles.sectionHeader}>💰 Payment Summary</Text>
-              <Text style={styles.detailsLink}>Details 🔗</Text>
-            </View>
-            <View style={styles.statsRow}>
-              {[
-                { val: `₹${dev.totalPaid.toLocaleString('en-IN')}`, lbl: 'Total Paid', color: COLORS.primary },
-                { val: `₹${dev.pending.toLocaleString('en-IN')}`, lbl: 'Pending', color: dev.pending > 0 ? COLORS.danger : COLORS.text2 },
-                { val: String(dev.projects), lbl: 'Projects', color: COLORS.text },
-              ].map((s) => (
-                <View key={s.lbl} style={styles.statBox}>
-                  <Text style={[styles.statVal, { color: s.color }]}>{s.val}</Text>
-                  <Text style={styles.statLbl}>{s.lbl}</Text>
-                </View>
-              ))}
-            </View>
-            <View style={styles.progressWrap}>
-              <View style={styles.progressLabelRow}>
-                <Text style={styles.progressLabel}>₹{dev.totalPaid.toLocaleString('en-IN')} paid of ₹{totalAgreed.toLocaleString('en-IN')}</Text>
-                <Text style={[styles.progressPct, { color: COLORS.primary }]}>{payPct}%</Text>
-              </View>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${payPct}%`, backgroundColor: COLORS.primary }]} />
-              </View>
-            </View>
-          </TouchableOpacity>
+        if (devRes.ok) {
+            setDev(devRes.data.developer);
+            setProjects(devRes.data.projects || []);
+        } else {
+            setError(devRes.message);
+        }
 
-          {/* Payment History */}
-          <View style={styles.card}>
-            <View style={styles.cardTitleRow}>
-              <Text style={styles.sectionHeader}>💸 Payment History</Text>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('DevPay', { devId: dev.id })}
-                style={styles.payNowBtn}
-              >
-                <Text style={styles.payNowText}>+ Pay Now</Text>
-              </TouchableOpacity>
-            </View>
-            {(dev.payHistory || []).map((p, i) => (
-              <TouchableOpacity
-                key={p.id || i}
-                style={[styles.histRow, i === (dev.payHistory.length - 1) && { borderBottomWidth: 0 }]}
-                onPress={() => setPayPopup({
-                  label: p.label, date: p.date, method: p.method,
-                  amount: `₹${p.amount.toLocaleString('en-IN')}`,
-                  status: p.status, note: p.note,
-                })}
-                activeOpacity={0.8}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.histLabel}>{p.label}</Text>
-                  <Text style={styles.histMeta}>{p.date} · {p.method}</Text>
-                </View>
-                <Text style={[styles.histAmt, { color: p.status === 'paid' ? COLORS.primary : COLORS.danger }]}>
-                  ₹{p.amount.toLocaleString('en-IN')}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+        if (histRes.ok) {
+            setHistory(histRes.data.history || []);
+            setHistStats(histRes.data.stats);
+        }
 
-          {/* Projects */}
-          <View style={styles.card}>
-            <Text style={styles.sectionHeader}>💼 Projects</Text>
-            {(dev.projectLinks || []).map((p, i) => {
-              const cfg = PAY_STATUS_CONFIG[p.payStatus] || PAY_STATUS_CONFIG.unpaid;
-              return (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[styles.histRow, i === (dev.projectLinks.length - 1) && { borderBottomWidth: 0 }]}
-                  onPress={() => navigation.navigate('ProjectDetail', { projectId: p.id })}
-                  activeOpacity={0.8}
+        setLoading(false);
+    }, [devId]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
+
+    const handleDelete = async () => {
+        setDeleting(true);
+        const res = await deleteDeveloper(devId);
+        setDeleting(false);
+        if (res.ok) {
+            navigation.goBack();
+        } else {
+            setDeletePopup(false);
+            Alert.alert("Cannot Remove", res.message);
+        }
+    };
+
+    if (loading) {
+        return (
+            <View
+                style={[
+                    s.container,
+                    { alignItems: "center", justifyContent: "center" },
+                ]}
+            >
+                <ActivityIndicator size="large" color={COLORS.accent} />
+            </View>
+        );
+    }
+
+    if (error || !dev) {
+        return (
+            <View
+                style={[
+                    s.container,
+                    {
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: 24,
+                    },
+                ]}
+            >
+                <Text style={{ fontSize: 32 }}>⚠️</Text>
+                <Text
+                    style={{
+                        fontFamily: FONTS.nunito.bold,
+                        fontSize: SIZES.lg2,
+                        color: COLORS.text,
+                        marginTop: 8,
+                    }}
                 >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.histLabel}>{p.name}</Text>
-                    <Text style={styles.histMeta}>{p.client} · {p.status}</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <View style={[styles.payBadge, { backgroundColor: cfg.bg }]}>
-                      <Text style={[styles.payBadgeText, { color: cfg.text }]}>{cfg.label}</Text>
-                    </View>
-                    <Text style={styles.arrow}>›</Text>
-                  </View>
+                    {error || "Developer not found"}
+                </Text>
+                <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    style={{
+                        marginTop: 16,
+                        backgroundColor: COLORS.primary,
+                        borderRadius: 10,
+                        paddingVertical: 10,
+                        paddingHorizontal: 24,
+                    }}
+                >
+                    <Text
+                        style={{
+                            fontFamily: FONTS.nunito.bold,
+                            fontSize: SIZES.md,
+                            color: "#fff",
+                        }}
+                    >
+                        ← Go Back
+                    </Text>
                 </TouchableOpacity>
-              );
-            })}
-          </View>
+            </View>
+        );
+    }
 
-          {/* Actions */}
-          <View style={styles.actionsGrid}>
-            {[
-              { label: '💸 Pay Now', bg: COLORS.primary, text: '#fff', onPress: () => navigation.navigate('DevPay', { devId: dev.id }) },
-              { label: '💬 WhatsApp', bg: '#D1FAE5', text: '#065F46' },
-              { label: '📞 Call', bg: COLORS.primaryUltraLight, text: COLORS.primary },
-              { label: '🗑 Remove', bg: '#FEE2E2', text: COLORS.danger, onPress: () => setDeletePopup(true) },
-            ].map((a) => (
-              <TouchableOpacity key={a.label} style={[styles.actionBtn, { backgroundColor: a.bg }]} onPress={a.onPress} activeOpacity={0.8}>
-                <Text style={[styles.actionText, { color: a.text }]}>{a.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <View style={{ height: 30 }} />
+    const initials = getDevInitials(dev.name);
+    const color = getDevColor(dev.name);
+    const totalAgreed = (dev.totalPaid || 0) + (dev.totalPending || 0);
+    const payPct =
+        totalAgreed > 0
+            ? Math.round(((dev.totalPaid || 0) / totalAgreed) * 100)
+            : 0;
+
+    return (
+        <View style={s.container}>
+            <LinearGradient
+                colors={COLORS.gradientAmber}
+                start={{ x: 0.13, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[s.header, { paddingTop: insets.top + 6 }]}
+            >
+                <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    style={s.backBtn}
+                >
+                    <Text style={s.backText}>← Back</Text>
+                </TouchableOpacity>
+                <View style={s.headerContent}>
+                    <View style={s.headerLeft}>
+                        <View style={[s.av, { backgroundColor: color }]}>
+                            <Text style={s.avText}>{initials}</Text>
+                        </View>
+                        <View>
+                            <Text style={s.devName}>{dev.name}</Text>
+                            <Text style={s.devRole}>
+                                {dev.role || "Developer"} ·{" "}
+                                {dev.status === "active"
+                                    ? "● Active"
+                                    : "⏸ Inactive"}
+                            </Text>
+                            {dev.phone ? (
+                                <Text style={s.devPhone}>{dev.phone}</Text>
+                            ) : null}
+                        </View>
+                    </View>
+                    <View style={s.headerBtns}>
+                        <TouchableOpacity
+                            onPress={() =>
+                                navigation.navigate("EditDev", {
+                                    devId: dev._id,
+                                    dev,
+                                })
+                            }
+                            style={s.hdrBtn}
+                        >
+                            <Text>✏️</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </LinearGradient>
+
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={false}
+                        onRefresh={loadData}
+                        tintColor={COLORS.accent}
+                    />
+                }
+            >
+                <View style={s.body}>
+                    {/* Payment Summary */}
+                    <TouchableOpacity
+                        style={s.card}
+                        onPress={() =>
+                            navigation.navigate("DevPaymentPage", {
+                                devId: dev._id,
+                            })
+                        }
+                        activeOpacity={0.85}
+                    >
+                        <View style={s.cardTitleRow}>
+                            <Text style={s.sectionHeader}>
+                                💰 Payment Summary
+                            </Text>
+                            <Text style={s.link}>Details 🔗</Text>
+                        </View>
+                        <View style={s.statsRow}>
+                            {[
+                                {
+                                    val: `₹${(dev.totalPaid || 0).toLocaleString("en-IN")}`,
+                                    lbl: "Total Paid",
+                                    color: COLORS.primary,
+                                },
+                                {
+                                    val: `₹${(dev.totalPending || 0).toLocaleString("en-IN")}`,
+                                    lbl: "Pending",
+                                    color:
+                                        (dev.totalPending || 0) > 0
+                                            ? COLORS.danger
+                                            : COLORS.text2,
+                                },
+                                {
+                                    val: String(dev.projectCount || 0),
+                                    lbl: "Projects",
+                                    color: COLORS.text,
+                                },
+                            ].map((st) => (
+                                <View key={st.lbl} style={s.statBox}>
+                                    <Text
+                                        style={[s.statVal, { color: st.color }]}
+                                    >
+                                        {st.val}
+                                    </Text>
+                                    <Text style={s.statLbl}>{st.lbl}</Text>
+                                </View>
+                            ))}
+                        </View>
+                        <View style={s.progressLblRow}>
+                            <Text style={s.progressLbl}>
+                                ₹{(dev.totalPaid || 0).toLocaleString("en-IN")}{" "}
+                                paid of ₹{totalAgreed.toLocaleString("en-IN")}
+                            </Text>
+                            <Text
+                                style={[
+                                    s.progressPct,
+                                    { color: COLORS.primary },
+                                ]}
+                            >
+                                {payPct}%
+                            </Text>
+                        </View>
+                        <View style={s.track}>
+                            <View
+                                style={[
+                                    s.fill,
+                                    {
+                                        width: `${payPct}%`,
+                                        backgroundColor: COLORS.primary,
+                                    },
+                                ]}
+                            />
+                        </View>
+                    </TouchableOpacity>
+
+                    {/* Payment History */}
+                    <View style={s.card}>
+                        <View style={s.cardTitleRow}>
+                            <Text style={s.sectionHeader}>
+                                💸 Payment History
+                            </Text>
+                            <TouchableOpacity
+                                onPress={() =>
+                                    navigation.navigate("DevPay", {
+                                        devId: dev._id,
+                                        devName: dev.name,
+                                    })
+                                }
+                                style={s.payNowBtn}
+                            >
+                                <Text style={s.payNowText}>+ Pay Now</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {history.length === 0 ? (
+                            <Text style={s.emptyRow}>
+                                No payments recorded yet.
+                            </Text>
+                        ) : (
+                            history.slice(0, 5).map((p, i) => (
+                                <TouchableOpacity
+                                    key={`${p.projectId}-${i}`}
+                                    style={[
+                                        s.histRow,
+                                        i ===
+                                            Math.min(history.length, 5) - 1 && {
+                                            borderBottomWidth: 0,
+                                        },
+                                    ]}
+                                    onPress={() =>
+                                        setPayPopup({
+                                            label: `${p.project} — Payment`,
+                                            date: p.date
+                                                ? new Date(
+                                                      p.date,
+                                                  ).toLocaleDateString("en-IN")
+                                                : "—",
+                                            method: `${METHOD_ICONS[p.method] || "💰"} ${p.method}`,
+                                            amount: `₹${p.amount.toLocaleString("en-IN")}`,
+                                            status: "paid",
+                                            note:
+                                                p.note ||
+                                                `For ${p.project} (${p.client})`,
+                                        })
+                                    }
+                                    activeOpacity={0.8}
+                                >
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.histLabel}>
+                                            {p.project}
+                                        </Text>
+                                        <Text style={s.histMeta}>
+                                            {p.date
+                                                ? new Date(
+                                                      p.date,
+                                                  ).toLocaleDateString("en-IN")
+                                                : "—"}
+                                            {` · ${METHOD_ICONS[p.method] || "💰"} ${p.method}`}
+                                        </Text>
+                                    </View>
+                                    <Text
+                                        style={[
+                                            s.histAmt,
+                                            { color: COLORS.primary },
+                                        ]}
+                                    >
+                                        ₹{p.amount.toLocaleString("en-IN")}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))
+                        )}
+
+                        {history.length > 5 && (
+                            <TouchableOpacity
+                                onPress={() =>
+                                    navigation.navigate("DevPaymentPage", {
+                                        devId: dev._id,
+                                    })
+                                }
+                                style={{ alignItems: "center", paddingTop: 10 }}
+                            >
+                                <Text
+                                    style={[s.link, { fontSize: SIZES.base }]}
+                                >
+                                    View all {history.length} payments →
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    {/* Projects */}
+                    {projects.length > 0 && (
+                        <View style={s.card}>
+                            <Text style={s.sectionHeader}>💼 Projects</Text>
+                            {projects.map((p, i) => {
+                                const cfg =
+                                    PROJECT_STATUS[p.status] ||
+                                    PROJECT_STATUS.inprogress;
+                                return (
+                                    <TouchableOpacity
+                                        key={p._id}
+                                        style={[
+                                            s.histRow,
+                                            i === projects.length - 1 && {
+                                                borderBottomWidth: 0,
+                                            },
+                                        ]}
+                                        onPress={() =>
+                                            navigation.navigate(
+                                                "ProjectDetail",
+                                                { projectId: p._id },
+                                            )
+                                        }
+                                        activeOpacity={0.8}
+                                    >
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={s.histLabel}>
+                                                {p.name}
+                                            </Text>
+                                            <Text style={s.histMeta}>
+                                                {p.client} · {p.status}
+                                            </Text>
+                                        </View>
+                                        <View
+                                            style={{
+                                                flexDirection: "row",
+                                                alignItems: "center",
+                                                gap: 6,
+                                            }}
+                                        >
+                                            <View
+                                                style={[
+                                                    s.projBadge,
+                                                    { backgroundColor: cfg.bg },
+                                                ]}
+                                            >
+                                                <Text
+                                                    style={[
+                                                        s.projBadgeText,
+                                                        { color: cfg.text },
+                                                    ]}
+                                                >
+                                                    {cfg.label}
+                                                </Text>
+                                            </View>
+                                            <Text style={s.arrow}>›</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    )}
+
+                    {/* Action buttons */}
+                    <View style={s.actionsGrid}>
+                        {[
+                            {
+                                label: "💸 Pay Now",
+                                bg: COLORS.primary,
+                                text: "#fff",
+                                onPress: () =>
+                                    navigation.navigate("DevPay", {
+                                        devId: dev._id,
+                                        devName: dev.name,
+                                    }),
+                            },
+                            {
+                                label: "💬 WhatsApp",
+                                bg: "#D1FAE5",
+                                text: "#065F46",
+                            },
+                            {
+                                label: "📞 Call",
+                                bg: COLORS.primaryUltraLight,
+                                text: COLORS.primary,
+                            },
+                            {
+                                label: "🗑 Remove",
+                                bg: "#FEE2E2",
+                                text: COLORS.danger,
+                                onPress: () => setDeletePopup(true),
+                            },
+                        ].map((a) => (
+                            <TouchableOpacity
+                                key={a.label}
+                                style={[s.actionBtn, { backgroundColor: a.bg }]}
+                                onPress={a.onPress}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={[s.actionText, { color: a.text }]}>
+                                    {a.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <View style={{ height: 30 }} />
+                </View>
+            </ScrollView>
+
+            <SinglePayPopup
+                visible={!!payPopup}
+                data={payPopup}
+                onClose={() => setPayPopup(null)}
+            />
+            <DeleteConfirmPopup
+                visible={deletePopup}
+                onClose={() => setDeletePopup(false)}
+                onConfirm={handleDelete}
+                loading={deleting}
+                type="dev"
+                name={dev.name}
+            />
         </View>
-      </ScrollView>
-
-      <SinglePayPopup visible={!!payPopup} data={payPopup} onClose={() => setPayPopup(null)} />
-      <DeleteConfirmPopup visible={deletePopup} onClose={() => setDeletePopup(false)} type="dev" />
-    </View>
-  );
+    );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  header: { paddingHorizontal: 18, paddingBottom: 20 },
-  backBtn: { marginBottom: 10 },
-  backText: { fontFamily: FONTS.nunito.bold, fontSize: SIZES.md, color: 'rgba(255,255,255,0.9)' },
-  headerContent: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 6 },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  devAv: { width: 54, height: 54, borderRadius: 27, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  devAvText: { fontFamily: FONTS.nunito.black, fontSize: 22, color: '#fff' },
-  devName: { fontFamily: FONTS.nunito.black, fontSize: SIZES.xl3, color: '#fff' },
-  devRole: { fontFamily: FONTS.dmSans.regular, fontSize: SIZES.base, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
-  devPhone: { fontFamily: FONTS.dmSans.regular, fontSize: SIZES.sm2, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
-  headerBtns: { flexDirection: 'row', gap: 6 },
-  hdrBtn: { width: 32, height: 32, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  body: { padding: 14 },
-  card: { backgroundColor: COLORS.card, borderRadius: RADIUS.card, padding: 16, marginBottom: 14, ...SHADOWS.card },
-  cardTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  sectionHeader: { fontFamily: FONTS.nunito.extraBold, fontSize: SIZES.sm2, color: COLORS.text2, textTransform: 'uppercase', letterSpacing: 0.5 },
-  detailsLink: { fontFamily: FONTS.nunito.bold, fontSize: SIZES.sm2, color: COLORS.primary },
-  statsRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  statBox: { flex: 1, backgroundColor: '#F9FAFB', borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
-  statVal: { fontFamily: FONTS.nunito.black, fontSize: SIZES.lg2 },
-  statLbl: { fontFamily: FONTS.dmSans.regular, fontSize: SIZES.sm, color: COLORS.text2, marginTop: 2 },
-  progressWrap: { marginTop: 10 },
-  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  progressLabel: { fontFamily: FONTS.dmSans.regular, fontSize: SIZES.sm2, color: COLORS.text2 },
-  progressPct: { fontFamily: FONTS.nunito.extraBold, fontSize: SIZES.sm2 },
-  progressTrack: { height: 6, backgroundColor: '#F3F4F6', borderRadius: 99, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 99 },
-  payNowBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  payNowText: { fontFamily: FONTS.nunito.extraBold, fontSize: SIZES.sm, color: '#fff' },
-  histRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  histLabel: { fontFamily: FONTS.nunito.extraBold, fontSize: SIZES.md, color: COLORS.text },
-  histMeta: { fontFamily: FONTS.dmSans.regular, fontSize: SIZES.sm2, color: COLORS.text2, marginTop: 2 },
-  histAmt: { fontFamily: FONTS.nunito.extraBold, fontSize: SIZES.md2 },
-  payBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  payBadgeText: { fontFamily: FONTS.nunito.bold, fontSize: SIZES.sm2 },
-  arrow: { fontSize: SIZES.md2, color: COLORS.text3 },
-  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  actionBtn: { flex: 1, minWidth: '45%', padding: 11, borderRadius: 12, alignItems: 'center' },
-  actionText: { fontFamily: FONTS.nunito.extraBold, fontSize: SIZES.base },
+const s = StyleSheet.create({
+    container: { flex: 1, backgroundColor: COLORS.bg },
+    header: { paddingHorizontal: 18, paddingBottom: 20 },
+    backBtn: { marginBottom: 10 },
+    backText: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.md,
+        color: "rgba(255,255,255,0.9)",
+    },
+    headerContent: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        marginTop: 6,
+    },
+    headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+    av: {
+        width: 54,
+        height: 54,
+        borderRadius: 27,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    avText: { fontFamily: FONTS.nunito.black, fontSize: 22, color: "#fff" },
+    devName: {
+        fontFamily: FONTS.nunito.black,
+        fontSize: SIZES.xl3,
+        color: "#fff",
+    },
+    devRole: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: "rgba(255,255,255,0.85)",
+        marginTop: 2,
+    },
+    devPhone: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.sm2,
+        color: "rgba(255,255,255,0.75)",
+        marginTop: 1,
+    },
+    headerBtns: { flexDirection: "row", gap: 6 },
+    hdrBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 9,
+        backgroundColor: "rgba(255,255,255,0.2)",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    body: { padding: 14 },
+    card: {
+        backgroundColor: COLORS.card,
+        borderRadius: RADIUS.card,
+        padding: 16,
+        marginBottom: 14,
+        ...SHADOWS.card,
+    },
+    cardTitleRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 10,
+    },
+    sectionHeader: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.sm2,
+        color: COLORS.text2,
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
+    },
+    link: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.sm2,
+        color: COLORS.primary,
+    },
+    statsRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
+    statBox: {
+        flex: 1,
+        backgroundColor: "#F9FAFB",
+        borderRadius: 10,
+        padding: 10,
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    statVal: { fontFamily: FONTS.nunito.black, fontSize: SIZES.lg2 },
+    statLbl: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.sm,
+        color: COLORS.text2,
+        marginTop: 2,
+    },
+    progressLblRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        marginBottom: 4,
+    },
+    progressLbl: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.sm2,
+        color: COLORS.text2,
+    },
+    progressPct: { fontFamily: FONTS.nunito.extraBold, fontSize: SIZES.sm2 },
+    track: {
+        height: 6,
+        backgroundColor: "#F3F4F6",
+        borderRadius: 99,
+        overflow: "hidden",
+    },
+    fill: { height: "100%", borderRadius: 99 },
+    payNowBtn: {
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 8,
+    },
+    payNowText: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.sm,
+        color: "#fff",
+    },
+    histRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+    },
+    histLabel: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.md,
+        color: COLORS.text,
+    },
+    histMeta: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.sm2,
+        color: COLORS.text2,
+        marginTop: 2,
+    },
+    histAmt: { fontFamily: FONTS.nunito.extraBold, fontSize: SIZES.md2 },
+    emptyRow: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.md,
+        color: COLORS.text3,
+        paddingVertical: 8,
+    },
+    projBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    projBadgeText: { fontFamily: FONTS.nunito.bold, fontSize: SIZES.sm2 },
+    arrow: { fontSize: SIZES.md2, color: COLORS.text3 },
+    actionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    actionBtn: {
+        flex: 1,
+        minWidth: "45%",
+        padding: 11,
+        borderRadius: 12,
+        alignItems: "center",
+    },
+    actionText: { fontFamily: FONTS.nunito.extraBold, fontSize: SIZES.base },
 });
