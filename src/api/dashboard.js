@@ -35,7 +35,7 @@ import { apiCall } from "./client";
 //  }
 // ─────────────────────────────────────────────────────────────────────────────
 export async function fetchDashboard() {
-    return apiCall("/api/dashboard/summary", { auth: true });
+    return apiCall("/api/dashboard", { auth: true });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

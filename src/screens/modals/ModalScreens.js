@@ -935,9 +935,79 @@ export function StatusScreen({ navigation, route }) {
 }
 
 // ─── EditDevScreen ────────────────────────────────────────────────────────────
+// export function EditDevScreen({ navigation, route }) {
+//     const insets = useSafeAreaInsets();
+//     const [role, setRole] = useState("Frontend Developer");
+//     const ROLE_CHIPS = [
+//         "Frontend Developer",
+//         "Backend Developer",
+//         "Full Stack",
+//         "UI/UX Designer",
+//         "DevOps Engineer",
+//         "Mobile Developer",
+//     ];
+//     return (
+//         <View style={shared.container}>
+//             <ModalHeader
+//                 colors={COLORS.gradientAmber}
+//                 title="✏️ Edit Developer"
+//                 onBack={() => navigation.goBack()}
+//                 insets={insets}
+//             />
+//             <ScrollView
+//                 showsVerticalScrollIndicator={false}
+//                 keyboardShouldPersistTaps="handled"
+//             >
+//                 <View style={shared.body}>
+//                     <View style={shared.card}>
+//                         <FormField label="Full Name">
+//                             <Input defaultValue="Zafran" />
+//                         </FormField>
+//                         <View style={shared.twoCol}>
+//                             <View style={{ flex: 1 }}>
+//                                 <FormField label="Phone">
+//                                     <Input
+//                                         defaultValue="+91 98XXX XXXXX"
+//                                         keyboardType="phone-pad"
+//                                     />
+//                                 </FormField>
+//                             </View>
+//                             <View style={{ flex: 1 }}>
+//                                 <FormField label="UPI ID">
+//                                     <Input defaultValue="zafran@upi" />
+//                                 </FormField>
+//                             </View>
+//                         </View>
+//                         <FormField label="Role / Skill">
+//                             <Input value={role} onChangeText={setRole} />
+//                             <SuggestionChipRow
+//                                 chips={ROLE_CHIPS}
+//                                 onSelect={setRole}
+//                                 small
+//                             />
+//                         </FormField>
+//                         <SubmitBtn
+//                             label="💾 Save Changes"
+//                             onPress={() => navigation.goBack()}
+//                         />
+//                     </View>
+//                 </View>
+//             </ScrollView>
+//         </View>
+//     );
+// }
 export function EditDevScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
-    const [role, setRole] = useState("Frontend Developer");
+    const { devId, dev: devProp, onSaved } = route?.params || {};
+
+    const [name, setName] = useState(devProp?.name || "");
+    const [phone, setPhone] = useState(devProp?.phone || "");
+    const [upi, setUpi] = useState(devProp?.upiId || "");
+    const [role, setRole] = useState(devProp?.role || "");
+    const [notes, setNotes] = useState(devProp?.notes || "");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
     const ROLE_CHIPS = [
         "Frontend Developer",
         "Backend Developer",
@@ -945,52 +1015,204 @@ export function EditDevScreen({ navigation, route }) {
         "UI/UX Designer",
         "DevOps Engineer",
         "Mobile Developer",
+        "QA Tester",
+        "Team Lead",
     ];
+
+    // Avatar helpers
+    const devColor = (n = "") => {
+        const c = [
+            "#ba7517",
+            "#378add",
+            "#d4537e",
+            "#534ab7",
+            "#1a7a5e",
+            "#d85a30",
+        ];
+        let h = 0;
+        for (const ch of n) h = ch.charCodeAt(0) + ((h << 5) - h);
+        return c[Math.abs(h) % c.length];
+    };
+    const devInitials = (n = "") =>
+        n
+            .split(" ")
+            .map((w) => w[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2) || "DV";
+    const color = devColor(name || devProp?.name || "");
+    const initials = devInitials(name || devProp?.name || "");
+
+    const handleSave = async () => {
+        setError("");
+        if (!name.trim()) {
+            setError("Developer name is required.");
+            return;
+        }
+        setLoading(true);
+        const res = await updateDeveloper(devId, {
+            name: name.trim(),
+            phone: phone || undefined,
+            upiId: upi || undefined,
+            role: role || undefined,
+            notes: notes || undefined,
+        });
+        setLoading(false);
+        if (res.ok) {
+            if (onSaved) onSaved();
+            navigation.goBack();
+        } else setError(res.message);
+    };
+
     return (
         <View style={shared.container}>
-            <ModalHeader
+            {/* Amber gradient header with avatar */}
+            <LinearGradient
                 colors={COLORS.gradientAmber}
-                title="✏️ Edit Developer"
-                onBack={() => navigation.goBack()}
-                insets={insets}
-            />
+                start={{ x: 0.13, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[edStyles.header, { paddingTop: insets.top + 6 }]}
+            >
+                <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    style={edStyles.backBtn}
+                >
+                    <Text style={edStyles.backText}>← Back</Text>
+                </TouchableOpacity>
+                <View style={edStyles.headerRow}>
+                    <View style={[edStyles.av, { backgroundColor: color }]}>
+                        <Text style={edStyles.avTxt}>{initials}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={edStyles.headerTitle}>
+                            ✏️ Edit Developer
+                        </Text>
+                        <Text style={edStyles.headerSub}>
+                            {devProp?.name || "Update developer details"}
+                        </Text>
+                    </View>
+                </View>
+            </LinearGradient>
+
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 40 }}
             >
                 <View style={shared.body}>
+                    {!!error && (
+                        <View style={shared.errorBox}>
+                            <Text style={shared.errorTxt}>⚠️ {error}</Text>
+                        </View>
+                    )}
+
+                    {/* Identity */}
                     <View style={shared.card}>
+                        <Text style={edStyles.cardTitle}>👤 Identity</Text>
                         <FormField label="Full Name">
-                            <Input defaultValue="Zafran" />
+                            <Input
+                                value={name}
+                                onChangeText={setName}
+                                placeholder="e.g. Zafran"
+                            />
                         </FormField>
                         <View style={shared.twoCol}>
                             <View style={{ flex: 1 }}>
                                 <FormField label="Phone">
                                     <Input
-                                        defaultValue="+91 98XXX XXXXX"
+                                        value={phone}
+                                        onChangeText={setPhone}
+                                        placeholder="+91 XXXXX"
                                         keyboardType="phone-pad"
                                     />
                                 </FormField>
                             </View>
                             <View style={{ flex: 1 }}>
                                 <FormField label="UPI ID">
-                                    <Input defaultValue="zafran@upi" />
+                                    <Input
+                                        value={upi}
+                                        onChangeText={setUpi}
+                                        placeholder="name@upi"
+                                    />
                                 </FormField>
                             </View>
                         </View>
+                    </View>
+
+                    {/* Role */}
+                    <View style={shared.card}>
+                        <Text style={edStyles.cardTitle}>💼 Role & Skills</Text>
                         <FormField label="Role / Skill">
-                            <Input value={role} onChangeText={setRole} />
-                            <SuggestionChipRow
-                                chips={ROLE_CHIPS}
-                                onSelect={setRole}
-                                small
+                            <Input
+                                value={role}
+                                onChangeText={setRole}
+                                placeholder="e.g. Frontend Developer"
+                            />
+                            <View style={edStyles.chipRow}>
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={{ gap: 6 }}
+                                >
+                                    {ROLE_CHIPS.map((chip) => (
+                                        <TouchableOpacity
+                                            key={chip}
+                                            onPress={() => setRole(chip)}
+                                            style={[
+                                                edStyles.chip,
+                                                role === chip &&
+                                                    edStyles.chipActive,
+                                            ]}
+                                            activeOpacity={0.8}
+                                        >
+                                            <Text
+                                                style={[
+                                                    edStyles.chipTxt,
+                                                    role === chip &&
+                                                        edStyles.chipTxtActive,
+                                                ]}
+                                            >
+                                                {chip}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        </FormField>
+                        <FormField label="Notes (optional)">
+                            <TextInput
+                                style={[
+                                    shared.input,
+                                    {
+                                        minHeight: 60,
+                                        textAlignVertical: "top",
+                                        paddingTop: 10,
+                                    },
+                                ]}
+                                value={notes}
+                                onChangeText={setNotes}
+                                placeholder="e.g. Specializes in React, Node.js..."
+                                placeholderTextColor={COLORS.text3}
+                                multiline
+                                numberOfLines={3}
                             />
                         </FormField>
-                        <SubmitBtn
-                            label="💾 Save Changes"
-                            onPress={() => navigation.goBack()}
-                        />
                     </View>
+
+                    <TouchableOpacity
+                        style={[edStyles.saveBtn, loading && { opacity: 0.65 }]}
+                        onPress={handleSave}
+                        disabled={loading}
+                        activeOpacity={0.85}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <Text style={edStyles.saveBtnTxt}>
+                                💾 Save Changes
+                            </Text>
+                        )}
+                    </TouchableOpacity>
                 </View>
             </ScrollView>
         </View>
@@ -998,45 +1220,254 @@ export function EditDevScreen({ navigation, route }) {
 }
 
 // ─── DevStatusScreen ──────────────────────────────────────────────────────────
-export function DevStatusScreen({ navigation }) {
+// export function DevStatusScreen({ navigation }) {
+//     const insets = useSafeAreaInsets();
+//     const [selected, setSelected] = useState("active");
+//     return (
+//         <View style={shared.container}>
+//             <ModalHeader
+//                 colors={COLORS.gradientAmber}
+//                 title="🔄 Developer Status"
+//                 onBack={() => navigation.goBack()}
+//                 insets={insets}
+//             />
+//             <ScrollView showsVerticalScrollIndicator={false}>
+//                 <View style={shared.body}>
+//                     <View style={shared.card}>
+//                         <Text style={shared.sectionHeader}>Select Status</Text>
+//                         <View style={{ gap: 10 }}>
+//                             {[
+//                                 {
+//                                     id: "active",
+//                                     icon: "✅",
+//                                     label: "Active",
+//                                     sub: "Currently working on projects",
+//                                     bg: "#D1FAE5",
+//                                     bc: COLORS.primary,
+//                                 },
+//                                 {
+//                                     id: "inactive",
+//                                     icon: "⏸️",
+//                                     label: "In-Active",
+//                                     sub: "Paused contract / not working",
+//                                     bg: "#F3F4F6",
+//                                     bc: "#9CA3AF",
+//                                 },
+//                             ].map((opt) => (
+//                                 <TouchableOpacity
+//                                     key={opt.id}
+//                                     onPress={() => setSelected(opt.id)}
+//                                     style={[
+//                                         styles.statusOpt,
+//                                         {
+//                                             borderColor:
+//                                                 selected === opt.id
+//                                                     ? opt.bc
+//                                                     : COLORS.border,
+//                                             borderWidth:
+//                                                 selected === opt.id ? 2 : 1.5,
+//                                             backgroundColor:
+//                                                 selected === opt.id
+//                                                     ? opt.bg
+//                                                     : "#F9FAFB",
+//                                         },
+//                                     ]}
+//                                     activeOpacity={0.8}
+//                                 >
+//                                     <View
+//                                         style={[
+//                                             styles.statusIcon,
+//                                             { backgroundColor: opt.bg },
+//                                         ]}
+//                                     >
+//                                         <Text style={{ fontSize: 18 }}>
+//                                             {opt.icon}
+//                                         </Text>
+//                                     </View>
+//                                     <View style={{ flex: 1 }}>
+//                                         <Text style={styles.statusLabel}>
+//                                             {opt.label}
+//                                         </Text>
+//                                         <Text style={styles.statusSub}>
+//                                             {opt.sub}
+//                                         </Text>
+//                                     </View>
+//                                     {selected === opt.id && (
+//                                         <Text style={{ fontSize: 16 }}>✅</Text>
+//                                     )}
+//                                 </TouchableOpacity>
+//                             ))}
+//                         </View>
+//                         <SubmitBtn
+//                             label="✅ Update Status"
+//                             onPress={() => navigation.goBack()}
+//                         />
+//                     </View>
+//                 </View>
+//             </ScrollView>
+//         </View>
+//     );
+// }
+export function DevStatusScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
-    const [selected, setSelected] = useState("active");
+    const { devId, devName, currentStatus, onChanged } = route?.params || {};
+    const [selected, setSelected] = useState(currentStatus || "active");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    // Avatar helpers
+    const devColorFn = (n = "") => {
+        const c = [
+            "#ba7517",
+            "#378add",
+            "#d4537e",
+            "#534ab7",
+            "#1a7a5e",
+            "#d85a30",
+        ];
+        let h = 0;
+        for (const ch of n) h = ch.charCodeAt(0) + ((h << 5) - h);
+        return c[Math.abs(h) % c.length];
+    };
+    const devInitialsFn = (n = "") =>
+        n
+            .split(" ")
+            .map((w) => w[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2) || "DV";
+    const avColor = devColorFn(devName || "");
+    const avInit = devInitialsFn(devName || "");
+
+    const OPTS = [
+        {
+            id: "active",
+            icon: "✅",
+            label: "Active",
+            sub: "Currently working on projects",
+            bg: "#D1FAE5",
+            bc: COLORS.primary,
+            pill: { bg: "#D1FAE5", text: "#065F46" },
+            radioBg: COLORS.primary,
+        },
+        {
+            id: "inactive",
+            icon: "⏸️",
+            label: "In-Active",
+            sub: "Paused contract / not working",
+            bg: "#F3F4F6",
+            bc: "#9CA3AF",
+            pill: { bg: "#F3F4F6", text: "#6B7280" },
+            radioBg: "#9CA3AF",
+        },
+    ];
+
+    const handleUpdate = async () => {
+        setError("");
+        setLoading(true);
+        const res = await updateDeveloper(devId, { status: selected });
+        setLoading(false);
+        if (res.ok) {
+            if (onChanged) onChanged();
+            navigation.goBack();
+        } else setError(res.message);
+    };
+
+    const selectedOpt = OPTS.find((o) => o.id === selected);
+
     return (
         <View style={shared.container}>
-            <ModalHeader
+            <LinearGradient
                 colors={COLORS.gradientAmber}
-                title="🔄 Developer Status"
-                onBack={() => navigation.goBack()}
-                insets={insets}
-            />
-            <ScrollView showsVerticalScrollIndicator={false}>
+                start={{ x: 0.13, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[dsStyles.header, { paddingTop: insets.top + 6 }]}
+            >
+                <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    style={dsStyles.backBtn}
+                >
+                    <Text style={dsStyles.backText}>← Back</Text>
+                </TouchableOpacity>
+                <Text style={dsStyles.headerTitle}>🔄 Developer Status</Text>
+                <Text style={dsStyles.headerSub}>
+                    Manage active / inactive state
+                </Text>
+            </LinearGradient>
+
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 40 }}
+            >
                 <View style={shared.body}>
+                    {!!error && (
+                        <View style={shared.errorBox}>
+                            <Text style={shared.errorTxt}>⚠️ {error}</Text>
+                        </View>
+                    )}
+
+                    {/* Preview card with avatar */}
+                    {devName ? (
+                        <View style={dsStyles.previewCard}>
+                            <View style={dsStyles.previewRow}>
+                                <View
+                                    style={[
+                                        dsStyles.previewAv,
+                                        { backgroundColor: avColor },
+                                    ]}
+                                >
+                                    <Text style={dsStyles.previewAvTxt}>
+                                        {avInit}
+                                    </Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={dsStyles.previewName}>
+                                        {devName}
+                                    </Text>
+                                    <View style={dsStyles.previewBadgeRow}>
+                                        <Text style={dsStyles.previewLbl}>
+                                            Current status:
+                                        </Text>
+                                        <View
+                                            style={[
+                                                dsStyles.statusPill,
+                                                {
+                                                    backgroundColor:
+                                                        selectedOpt?.pill.bg,
+                                                },
+                                            ]}
+                                        >
+                                            <Text
+                                                style={[
+                                                    dsStyles.statusPillTxt,
+                                                    {
+                                                        color: selectedOpt?.pill
+                                                            .text,
+                                                    },
+                                                ]}
+                                            >
+                                                {selectedOpt?.icon}{" "}
+                                                {selectedOpt?.label}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                </View>
+                            </View>
+                        </View>
+                    ) : null}
+
+                    {/* Status option cards */}
                     <View style={shared.card}>
-                        <Text style={shared.sectionHeader}>Select Status</Text>
+                        <Text style={dsStyles.cardTitle}>
+                            Select New Status
+                        </Text>
                         <View style={{ gap: 10 }}>
-                            {[
-                                {
-                                    id: "active",
-                                    icon: "✅",
-                                    label: "Active",
-                                    sub: "Currently working on projects",
-                                    bg: "#D1FAE5",
-                                    bc: COLORS.primary,
-                                },
-                                {
-                                    id: "inactive",
-                                    icon: "⏸️",
-                                    label: "In-Active",
-                                    sub: "Paused contract / not working",
-                                    bg: "#F3F4F6",
-                                    bc: "#9CA3AF",
-                                },
-                            ].map((opt) => (
+                            {OPTS.map((opt) => (
                                 <TouchableOpacity
                                     key={opt.id}
                                     onPress={() => setSelected(opt.id)}
                                     style={[
-                                        styles.statusOpt,
+                                        dsStyles.optCard,
                                         {
                                             borderColor:
                                                 selected === opt.id
@@ -1054,32 +1485,60 @@ export function DevStatusScreen({ navigation }) {
                                 >
                                     <View
                                         style={[
-                                            styles.statusIcon,
+                                            dsStyles.optIconWrap,
                                             { backgroundColor: opt.bg },
                                         ]}
                                     >
-                                        <Text style={{ fontSize: 18 }}>
+                                        <Text style={{ fontSize: 20 }}>
                                             {opt.icon}
                                         </Text>
                                     </View>
                                     <View style={{ flex: 1 }}>
-                                        <Text style={styles.statusLabel}>
+                                        <Text style={dsStyles.optLabel}>
                                             {opt.label}
                                         </Text>
-                                        <Text style={styles.statusSub}>
+                                        <Text style={dsStyles.optSub}>
                                             {opt.sub}
                                         </Text>
                                     </View>
-                                    {selected === opt.id && (
-                                        <Text style={{ fontSize: 16 }}>✅</Text>
+                                    {selected === opt.id ? (
+                                        <View
+                                            style={[
+                                                dsStyles.radioOn,
+                                                {
+                                                    backgroundColor:
+                                                        opt.radioBg,
+                                                },
+                                            ]}
+                                        >
+                                            <Text style={dsStyles.radioOnTxt}>
+                                                ✓
+                                            </Text>
+                                        </View>
+                                    ) : (
+                                        <View style={dsStyles.radioOff} />
                                     )}
                                 </TouchableOpacity>
                             ))}
                         </View>
-                        <SubmitBtn
-                            label="✅ Update Status"
-                            onPress={() => navigation.goBack()}
-                        />
+
+                        <TouchableOpacity
+                            style={[
+                                dsStyles.updateBtn,
+                                loading && { opacity: 0.65 },
+                            ]}
+                            onPress={handleUpdate}
+                            disabled={loading}
+                            activeOpacity={0.85}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <Text style={dsStyles.updateBtnTxt}>
+                                    ✅ Update Status
+                                </Text>
+                            )}
+                        </TouchableOpacity>
                     </View>
                 </View>
             </ScrollView>
@@ -1088,64 +1547,294 @@ export function DevStatusScreen({ navigation }) {
 }
 
 // ─── EditClientScreen ─────────────────────────────────────────────────────────
-export function EditClientScreen({ navigation }) {
+// export function EditClientScreen({ navigation }) {
+//     const insets = useSafeAreaInsets();
+//     const [industry, setIndustry] = useState("Technology");
+//     const INDUSTRY_CHIPS = [
+//         "Technology",
+//         "Education",
+//         "Real Estate",
+//         "Retail",
+//         "Finance",
+//     ];
+//     return (
+//         <View style={shared.container}>
+//             <ModalHeader
+//                 colors={COLORS.gradientBlue}
+//                 title="✏️ Edit Client"
+//                 onBack={() => navigation.goBack()}
+//                 insets={insets}
+//             />
+//             <ScrollView
+//                 showsVerticalScrollIndicator={false}
+//                 keyboardShouldPersistTaps="handled"
+//             >
+//                 <View style={shared.body}>
+//                     <View style={shared.card}>
+//                         <FormField label="Company Name">
+//                             <Input defaultValue="Flatshare Karo" />
+//                         </FormField>
+//                         <View style={shared.twoCol}>
+//                             <View style={{ flex: 1 }}>
+//                                 <FormField label="Contact Person">
+//                                     <Input defaultValue="Prashant K." />
+//                                 </FormField>
+//                             </View>
+//                             <View style={{ flex: 1 }}>
+//                                 <FormField label="Phone">
+//                                     <Input
+//                                         defaultValue="+91 97XXX XXXXX"
+//                                         keyboardType="phone-pad"
+//                                     />
+//                                 </FormField>
+//                             </View>
+//                         </View>
+//                         <FormField label="Industry">
+//                             <Input
+//                                 value={industry}
+//                                 onChangeText={setIndustry}
+//                             />
+//                             <SuggestionChipRow
+//                                 chips={INDUSTRY_CHIPS}
+//                                 onSelect={setIndustry}
+//                                 small
+//                             />
+//                         </FormField>
+//                         <SubmitBtn
+//                             label="💾 Save Changes"
+//                             onPress={() => navigation.goBack()}
+//                         />
+//                     </View>
+//                 </View>
+//             </ScrollView>
+//         </View>
+//     );
+// }
+export function EditClientScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
-    const [industry, setIndustry] = useState("Technology");
-    const INDUSTRY_CHIPS = [
-        "Technology",
-        "Education",
-        "Real Estate",
-        "Retail",
-        "Finance",
+    const { clientId, client: clientProp, onSaved } = route?.params || {};
+
+    const [name, setName] = useState(clientProp?.name || "");
+    const [contact, setContact] = useState(clientProp?.contactPerson || "");
+    const [phone, setPhone] = useState(clientProp?.phone || "");
+    const [email, setEmail] = useState(clientProp?.email || "");
+    const [industry, setIndustry] = useState(
+        clientProp?.industry || "Technology",
+    );
+    const [notes, setNotes] = useState(clientProp?.notes || "");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    const INDUSTRY_GRID = [
+        { id: "Technology", icon: "💻", label: "Technology" },
+        { id: "Education", icon: "📚", label: "Education" },
+        { id: "Real Estate", icon: "🏠", label: "Real Estate" },
+        { id: "Retail", icon: "🛒", label: "Retail" },
+        { id: "Finance", icon: "💰", label: "Finance" },
+        { id: "Healthcare", icon: "🏥", label: "Healthcare" },
+        { id: "Other", icon: "🏢", label: "Other" },
     ];
+
+    // Client avatar helpers (initial letter + color from name)
+    const clientInitial = (name || "C")[0].toUpperCase();
+    const CLIENT_BG = ["#EDE9FE", "#DBEAFE", "#D1FAE5", "#FEF3C7", "#FEE2E2"];
+    const clientBg = CLIENT_BG[(name.charCodeAt(0) || 0) % CLIENT_BG.length];
+    const CLIENT_TXT = ["#6C3EF4", "#1D4ED8", "#065F46", "#92400E", "#991B1B"];
+    const clientTxt = CLIENT_TXT[(name.charCodeAt(0) || 0) % CLIENT_TXT.length];
+
+    const handleSave = async () => {
+        setError("");
+        if (!name.trim()) {
+            setError("Client name is required.");
+            return;
+        }
+        setLoading(true);
+        const res = await updateClient(clientId, {
+            name: name.trim(),
+            contactPerson: contact || undefined,
+            phone: phone || undefined,
+            email: email || undefined,
+            industry: industry || undefined,
+            notes: notes || undefined,
+        });
+        setLoading(false);
+        if (res.ok) {
+            if (onSaved) onSaved();
+            navigation.goBack();
+        } else setError(res.message);
+    };
+
     return (
         <View style={shared.container}>
-            <ModalHeader
+            {/* Blue gradient header with client avatar */}
+            <LinearGradient
                 colors={COLORS.gradientBlue}
-                title="✏️ Edit Client"
-                onBack={() => navigation.goBack()}
-                insets={insets}
-            />
+                start={{ x: 0.13, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[ecStyles.header, { paddingTop: insets.top + 6 }]}
+            >
+                <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    style={ecStyles.backBtn}
+                >
+                    <Text style={ecStyles.backText}>← Back</Text>
+                </TouchableOpacity>
+                <View style={ecStyles.headerRow}>
+                    <View
+                        style={[
+                            ecStyles.clientIcon,
+                            { backgroundColor: "rgba(255,255,255,0.25)" },
+                        ]}
+                    >
+                        <Text style={ecStyles.clientIconTxt}>
+                            {clientInitial}
+                        </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={ecStyles.headerTitle}>✏️ Edit Client</Text>
+                        <Text style={ecStyles.headerSub}>
+                            {clientProp?.name || "Update client details"}
+                        </Text>
+                    </View>
+                </View>
+            </LinearGradient>
+
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 40 }}
             >
                 <View style={shared.body}>
+                    {!!error && (
+                        <View style={shared.errorBox}>
+                            <Text style={shared.errorTxt}>⚠️ {error}</Text>
+                        </View>
+                    )}
+
+                    {/* Company info card */}
                     <View style={shared.card}>
-                        <FormField label="Company Name">
-                            <Input defaultValue="Flatshare Karo" />
+                        <Text style={ecStyles.cardTitle}>🏢 Company Info</Text>
+                        <FormField label="Company / Client Name">
+                            <Input
+                                value={name}
+                                onChangeText={setName}
+                                placeholder="e.g. Maksoft Technologies"
+                            />
                         </FormField>
                         <View style={shared.twoCol}>
                             <View style={{ flex: 1 }}>
                                 <FormField label="Contact Person">
-                                    <Input defaultValue="Prashant K." />
+                                    <Input
+                                        value={contact}
+                                        onChangeText={setContact}
+                                        placeholder="e.g. Rajesh M."
+                                    />
                                 </FormField>
                             </View>
                             <View style={{ flex: 1 }}>
                                 <FormField label="Phone">
                                     <Input
-                                        defaultValue="+91 97XXX XXXXX"
+                                        value={phone}
+                                        onChangeText={setPhone}
+                                        placeholder="+91 XXXXX"
                                         keyboardType="phone-pad"
                                     />
                                 </FormField>
                             </View>
                         </View>
-                        <FormField label="Industry">
+                        <FormField label="Email">
                             <Input
-                                value={industry}
-                                onChangeText={setIndustry}
-                            />
-                            <SuggestionChipRow
-                                chips={INDUSTRY_CHIPS}
-                                onSelect={setIndustry}
-                                small
+                                value={email}
+                                onChangeText={setEmail}
+                                placeholder="client@company.com"
+                                keyboardType="email-address"
                             />
                         </FormField>
-                        <SubmitBtn
-                            label="💾 Save Changes"
-                            onPress={() => navigation.goBack()}
-                        />
                     </View>
+
+                    {/* Industry grid card */}
+                    <View style={shared.card}>
+                        <Text style={ecStyles.cardTitle}>🏭 Industry</Text>
+                        <View style={ecStyles.industryGrid}>
+                            {INDUSTRY_GRID.map((ind) => (
+                                <TouchableOpacity
+                                    key={ind.id}
+                                    onPress={() => setIndustry(ind.id)}
+                                    style={[
+                                        ecStyles.industryCard,
+                                        industry === ind.id &&
+                                            ecStyles.industryCardActive,
+                                    ]}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={ecStyles.industryIcon}>
+                                        {ind.icon}
+                                    </Text>
+                                    <Text
+                                        style={[
+                                            ecStyles.industryLbl,
+                                            industry === ind.id &&
+                                                ecStyles.industryLblActive,
+                                        ]}
+                                    >
+                                        {ind.label}
+                                    </Text>
+                                    {industry === ind.id && (
+                                        <View style={ecStyles.industryCheck}>
+                                            <Text
+                                                style={{
+                                                    fontSize: 9,
+                                                    color: "#fff",
+                                                    fontFamily:
+                                                        FONTS.nunito.black,
+                                                }}
+                                            >
+                                                ✓
+                                            </Text>
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
+
+                    {/* Notes card */}
+                    <View style={shared.card}>
+                        <Text style={ecStyles.cardTitle}>📝 Notes</Text>
+                        <FormField label="Internal Notes (optional)">
+                            <TextInput
+                                style={[
+                                    shared.input,
+                                    {
+                                        minHeight: 70,
+                                        textAlignVertical: "top",
+                                        paddingTop: 10,
+                                    },
+                                ]}
+                                value={notes}
+                                onChangeText={setNotes}
+                                placeholder="e.g. Referred by Rahul, Slow payment cycle..."
+                                placeholderTextColor={COLORS.text3}
+                                multiline
+                                numberOfLines={3}
+                            />
+                        </FormField>
+                    </View>
+
+                    <TouchableOpacity
+                        style={[ecStyles.saveBtn, loading && { opacity: 0.65 }]}
+                        onPress={handleSave}
+                        disabled={loading}
+                        activeOpacity={0.85}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <Text style={ecStyles.saveBtnTxt}>
+                                💾 Save Changes
+                            </Text>
+                        )}
+                    </TouchableOpacity>
                 </View>
             </ScrollView>
         </View>
@@ -1153,45 +1842,223 @@ export function EditClientScreen({ navigation }) {
 }
 
 // ─── ClientStatusScreen ───────────────────────────────────────────────────────
-export function ClientStatusScreen({ navigation }) {
+// export function ClientStatusScreen({ navigation }) {
+//     const insets = useSafeAreaInsets();
+//     const [selected, setSelected] = useState("active");
+//     return (
+//         <View style={shared.container}>
+//             <ModalHeader
+//                 colors={COLORS.gradientBlue}
+//                 title="🔄 Client Status"
+//                 onBack={() => navigation.goBack()}
+//                 insets={insets}
+//             />
+//             <ScrollView showsVerticalScrollIndicator={false}>
+//                 <View style={shared.body}>
+//                     <View style={shared.card}>
+//                         <Text style={shared.sectionHeader}>Select Status</Text>
+//                         <View style={{ gap: 10 }}>
+//                             {[
+//                                 {
+//                                     id: "active",
+//                                     icon: "✅",
+//                                     label: "Active",
+//                                     sub: "Ongoing business relationship",
+//                                     bg: "#D1FAE5",
+//                                     bc: COLORS.primary,
+//                                 },
+//                                 {
+//                                     id: "inactive",
+//                                     icon: "⏸️",
+//                                     label: "In-Active",
+//                                     sub: "No current projects or dealings",
+//                                     bg: "#F3F4F6",
+//                                     bc: "#9CA3AF",
+//                                 },
+//                             ].map((opt) => (
+//                                 <TouchableOpacity
+//                                     key={opt.id}
+//                                     onPress={() => setSelected(opt.id)}
+//                                     style={[
+//                                         styles.statusOpt,
+//                                         {
+//                                             borderColor:
+//                                                 selected === opt.id
+//                                                     ? opt.bc
+//                                                     : COLORS.border,
+//                                             borderWidth:
+//                                                 selected === opt.id ? 2 : 1.5,
+//                                             backgroundColor:
+//                                                 selected === opt.id
+//                                                     ? opt.bg
+//                                                     : "#F9FAFB",
+//                                         },
+//                                     ]}
+//                                     activeOpacity={0.8}
+//                                 >
+//                                     <View
+//                                         style={[
+//                                             styles.statusIcon,
+//                                             { backgroundColor: opt.bg },
+//                                         ]}
+//                                     >
+//                                         <Text style={{ fontSize: 18 }}>
+//                                             {opt.icon}
+//                                         </Text>
+//                                     </View>
+//                                     <View style={{ flex: 1 }}>
+//                                         <Text style={styles.statusLabel}>
+//                                             {opt.label}
+//                                         </Text>
+//                                         <Text style={styles.statusSub}>
+//                                             {opt.sub}
+//                                         </Text>
+//                                     </View>
+//                                     {selected === opt.id && (
+//                                         <Text style={{ fontSize: 16 }}>✅</Text>
+//                                     )}
+//                                 </TouchableOpacity>
+//                             ))}
+//                         </View>
+//                         <SubmitBtn
+//                             label="✅ Update Status"
+//                             onPress={() => navigation.goBack()}
+//                         />
+//                     </View>
+//                 </View>
+//             </ScrollView>
+//         </View>
+//     );
+// }
+
+export function ClientStatusScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
-    const [selected, setSelected] = useState("active");
+    const { clientId, clientName, currentStatus, onChanged } =
+        route?.params || {};
+    const [selected, setSelected] = useState(currentStatus || "active");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    const OPTS = [
+        {
+            id: "active",
+            icon: "✅",
+            label: "Active",
+            sub: "Ongoing business relationship",
+            bg: "#D1FAE5",
+            bc: "#059669",
+            pill: { bg: "#D1FAE5", text: "#065F46" },
+        },
+        {
+            id: "inactive",
+            icon: "⏸️",
+            label: "In-Active",
+            sub: "No current projects or dealings",
+            bg: "#F3F4F6",
+            bc: "#9CA3AF",
+            pill: { bg: "#F3F4F6", text: "#6B7280" },
+        },
+    ];
+
+    const handleUpdate = async () => {
+        setError("");
+        setLoading(true);
+        const res = await updateClientStatus(clientId, selected);
+        setLoading(false);
+        if (res.ok) {
+            if (onChanged) onChanged();
+            navigation.goBack();
+        } else setError(res.message);
+    };
+
+    const selectedOpt = OPTS.find((o) => o.id === selected);
+
     return (
         <View style={shared.container}>
-            <ModalHeader
+            <LinearGradient
                 colors={COLORS.gradientBlue}
-                title="🔄 Client Status"
-                onBack={() => navigation.goBack()}
-                insets={insets}
-            />
-            <ScrollView showsVerticalScrollIndicator={false}>
+                start={{ x: 0.13, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[csStyles.header, { paddingTop: insets.top + 6 }]}
+            >
+                <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    style={csStyles.backBtn}
+                >
+                    <Text style={csStyles.backText}>← Back</Text>
+                </TouchableOpacity>
+                <Text style={csStyles.headerTitle}>🔄 Client Status</Text>
+                <Text style={csStyles.headerSub}>
+                    Manage active / inactive state
+                </Text>
+            </LinearGradient>
+
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 40 }}
+            >
                 <View style={shared.body}>
+                    {!!error && (
+                        <View style={shared.errorBox}>
+                            <Text style={shared.errorTxt}>⚠️ {error}</Text>
+                        </View>
+                    )}
+
+                    {/* Preview card — shows who we're updating */}
+                    {clientName ? (
+                        <View style={csStyles.previewCard}>
+                            <View style={csStyles.previewRow}>
+                                <View style={csStyles.previewIconWrap}>
+                                    <Text style={csStyles.previewIcon}>🏢</Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={csStyles.previewName}>
+                                        {clientName}
+                                    </Text>
+                                    <View style={csStyles.previewBadgeRow}>
+                                        <Text style={csStyles.previewLbl}>
+                                            Current status:
+                                        </Text>
+                                        <View
+                                            style={[
+                                                csStyles.statusPill,
+                                                {
+                                                    backgroundColor:
+                                                        selectedOpt?.pill.bg,
+                                                },
+                                            ]}
+                                        >
+                                            <Text
+                                                style={[
+                                                    csStyles.statusPillTxt,
+                                                    {
+                                                        color: selectedOpt?.pill
+                                                            .text,
+                                                    },
+                                                ]}
+                                            >
+                                                {selectedOpt?.icon}{" "}
+                                                {selectedOpt?.label}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                </View>
+                            </View>
+                        </View>
+                    ) : null}
+
+                    {/* Status option cards */}
                     <View style={shared.card}>
-                        <Text style={shared.sectionHeader}>Select Status</Text>
+                        <Text style={csStyles.cardTitle}>
+                            Select New Status
+                        </Text>
                         <View style={{ gap: 10 }}>
-                            {[
-                                {
-                                    id: "active",
-                                    icon: "✅",
-                                    label: "Active",
-                                    sub: "Ongoing business relationship",
-                                    bg: "#D1FAE5",
-                                    bc: COLORS.primary,
-                                },
-                                {
-                                    id: "inactive",
-                                    icon: "⏸️",
-                                    label: "In-Active",
-                                    sub: "No current projects or dealings",
-                                    bg: "#F3F4F6",
-                                    bc: "#9CA3AF",
-                                },
-                            ].map((opt) => (
+                            {OPTS.map((opt) => (
                                 <TouchableOpacity
                                     key={opt.id}
                                     onPress={() => setSelected(opt.id)}
                                     style={[
-                                        styles.statusOpt,
+                                        csStyles.optCard,
                                         {
                                             borderColor:
                                                 selected === opt.id
@@ -1209,32 +2076,52 @@ export function ClientStatusScreen({ navigation }) {
                                 >
                                     <View
                                         style={[
-                                            styles.statusIcon,
+                                            csStyles.optIconWrap,
                                             { backgroundColor: opt.bg },
                                         ]}
                                     >
-                                        <Text style={{ fontSize: 18 }}>
+                                        <Text style={{ fontSize: 20 }}>
                                             {opt.icon}
                                         </Text>
                                     </View>
                                     <View style={{ flex: 1 }}>
-                                        <Text style={styles.statusLabel}>
+                                        <Text style={csStyles.optLabel}>
                                             {opt.label}
                                         </Text>
-                                        <Text style={styles.statusSub}>
+                                        <Text style={csStyles.optSub}>
                                             {opt.sub}
                                         </Text>
                                     </View>
-                                    {selected === opt.id && (
-                                        <Text style={{ fontSize: 16 }}>✅</Text>
+                                    {selected === opt.id ? (
+                                        <View style={csStyles.radioOn}>
+                                            <Text style={csStyles.radioOnTxt}>
+                                                ✓
+                                            </Text>
+                                        </View>
+                                    ) : (
+                                        <View style={csStyles.radioOff} />
                                     )}
                                 </TouchableOpacity>
                             ))}
                         </View>
-                        <SubmitBtn
-                            label="✅ Update Status"
-                            onPress={() => navigation.goBack()}
-                        />
+
+                        <TouchableOpacity
+                            style={[
+                                csStyles.updateBtn,
+                                loading && { opacity: 0.65 },
+                            ]}
+                            onPress={handleUpdate}
+                            disabled={loading}
+                            activeOpacity={0.85}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <Text style={csStyles.updateBtnTxt}>
+                                    ✅ Update Status
+                                </Text>
+                            )}
+                        </TouchableOpacity>
                     </View>
                 </View>
             </ScrollView>
@@ -2575,6 +3462,423 @@ const epStyles = StyleSheet.create({
     },
     saveBtn: {
         backgroundColor: "#1D4ED8",
+        borderRadius: RADIUS.xl,
+        padding: 14,
+        alignItems: "center",
+        marginBottom: 10,
+    },
+    saveBtnTxt: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.md2,
+        color: "#fff",
+    },
+});
+
+const dsStyles = StyleSheet.create({
+    header: { paddingHorizontal: 18, paddingBottom: 18 },
+    backBtn: { marginBottom: 10 },
+    backText: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.md,
+        color: "rgba(255,255,255,0.9)",
+    },
+    headerTitle: {
+        fontFamily: FONTS.nunito.black,
+        fontSize: SIZES.xl2,
+        color: "#fff",
+        marginTop: 4,
+    },
+    headerSub: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: "rgba(255,255,255,0.75)",
+        marginTop: 3,
+    },
+    previewCard: {
+        backgroundColor: "#FEF3C7",
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 12,
+        borderWidth: 1.5,
+        borderColor: "#FDE68A",
+    },
+    previewRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+    previewAv: {
+        width: 46,
+        height: 46,
+        borderRadius: 23,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 2,
+        borderColor: "rgba(245,158,11,0.3)",
+    },
+    previewAvTxt: {
+        fontFamily: FONTS.nunito.black,
+        fontSize: SIZES.lg,
+        color: "#fff",
+    },
+    previewName: {
+        fontFamily: FONTS.nunito.black,
+        fontSize: SIZES.lg,
+        color: COLORS.text,
+    },
+    previewBadgeRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginTop: 5,
+        flexWrap: "wrap",
+    },
+    previewLbl: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: COLORS.text2,
+    },
+    statusPill: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+    statusPillTxt: { fontFamily: FONTS.nunito.bold, fontSize: SIZES.sm2 },
+    cardTitle: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.md2,
+        color: COLORS.text,
+        marginBottom: 14,
+    },
+    optCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        padding: 14,
+        borderRadius: 14,
+    },
+    optIconWrap: {
+        width: 42,
+        height: 42,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    optLabel: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.md2,
+        color: COLORS.text,
+    },
+    optSub: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: COLORS.text2,
+        marginTop: 2,
+    },
+    radioOn: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    radioOnTxt: {
+        fontFamily: FONTS.nunito.black,
+        fontSize: SIZES.sm2,
+        color: "#fff",
+    },
+    radioOff: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        borderWidth: 2,
+        borderColor: COLORS.border,
+        backgroundColor: "#fff",
+    },
+    updateBtn: {
+        backgroundColor: COLORS.accent,
+        borderRadius: RADIUS.xl,
+        padding: 14,
+        alignItems: "center",
+        marginTop: 16,
+    },
+    updateBtnTxt: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.md2,
+        color: "#fff",
+    },
+});
+
+const ecStyles = StyleSheet.create({
+    header: { paddingHorizontal: 18, paddingBottom: 18 },
+    backBtn: { marginBottom: 10 },
+    backText: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.md,
+        color: "rgba(255,255,255,0.9)",
+    },
+    headerRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 14,
+        marginTop: 4,
+    },
+    clientIcon: {
+        width: 52,
+        height: 52,
+        borderRadius: 14,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 2,
+        borderColor: "rgba(255,255,255,0.4)",
+    },
+    clientIconTxt: {
+        fontFamily: FONTS.nunito.black,
+        fontSize: SIZES.xl2,
+        color: "#fff",
+    },
+    headerTitle: {
+        fontFamily: FONTS.nunito.black,
+        fontSize: SIZES.xl2,
+        color: "#fff",
+    },
+    headerSub: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: "rgba(255,255,255,0.8)",
+        marginTop: 2,
+    },
+    cardTitle: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.md2,
+        color: COLORS.text,
+        marginBottom: 14,
+    },
+    industryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    industryCard: {
+        width: "30%",
+        paddingVertical: 12,
+        paddingHorizontal: 4,
+        backgroundColor: "#F9FAFB",
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1.5,
+        borderColor: COLORS.border,
+        gap: 4,
+        position: "relative",
+    },
+    industryCardActive: { borderColor: "#2563eb", backgroundColor: "#EFF6FF" },
+    industryIcon: { fontSize: 22 },
+    industryLbl: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.sm,
+        color: COLORS.text2,
+        textAlign: "center",
+    },
+    industryLblActive: { color: "#1D4ED8" },
+    industryCheck: {
+        position: "absolute",
+        top: 5,
+        right: 5,
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: "#2563eb",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    saveBtn: {
+        backgroundColor: "#2563eb",
+        borderRadius: RADIUS.xl,
+        padding: 14,
+        alignItems: "center",
+        marginBottom: 10,
+    },
+    saveBtnTxt: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.md2,
+        color: "#fff",
+    },
+});
+const csStyles = StyleSheet.create({
+    header: { paddingHorizontal: 18, paddingBottom: 18 },
+    backBtn: { marginBottom: 10 },
+    backText: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.md,
+        color: "rgba(255,255,255,0.9)",
+    },
+    headerTitle: {
+        fontFamily: FONTS.nunito.black,
+        fontSize: SIZES.xl2,
+        color: "#fff",
+        marginTop: 4,
+    },
+    headerSub: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: "rgba(255,255,255,0.75)",
+        marginTop: 3,
+    },
+    previewCard: {
+        backgroundColor: "#EFF6FF",
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 12,
+        borderWidth: 1.5,
+        borderColor: "#BFDBFE",
+    },
+    previewRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+    previewIconWrap: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: "#DBEAFE",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    previewIcon: { fontSize: 22 },
+    previewName: {
+        fontFamily: FONTS.nunito.black,
+        fontSize: SIZES.lg,
+        color: COLORS.text,
+    },
+    previewBadgeRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginTop: 5,
+        flexWrap: "wrap",
+    },
+    previewLbl: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: COLORS.text2,
+    },
+    statusPill: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+    statusPillTxt: { fontFamily: FONTS.nunito.bold, fontSize: SIZES.sm2 },
+    cardTitle: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.md2,
+        color: COLORS.text,
+        marginBottom: 14,
+    },
+    optCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        padding: 14,
+        borderRadius: 14,
+    },
+    optIconWrap: {
+        width: 42,
+        height: 42,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    optLabel: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.md2,
+        color: COLORS.text,
+    },
+    optSub: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: COLORS.text2,
+        marginTop: 2,
+    },
+    radioOn: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: "#2563eb",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    radioOnTxt: {
+        fontFamily: FONTS.nunito.black,
+        fontSize: SIZES.sm2,
+        color: "#fff",
+    },
+    radioOff: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        borderWidth: 2,
+        borderColor: COLORS.border,
+        backgroundColor: "#fff",
+    },
+    updateBtn: {
+        backgroundColor: "#2563eb",
+        borderRadius: RADIUS.xl,
+        padding: 14,
+        alignItems: "center",
+        marginTop: 16,
+    },
+    updateBtnTxt: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.md2,
+        color: "#fff",
+    },
+});
+
+const edStyles = StyleSheet.create({
+    header: { paddingHorizontal: 18, paddingBottom: 18 },
+    backBtn: { marginBottom: 10 },
+    backText: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.md,
+        color: "rgba(255,255,255,0.9)",
+    },
+    headerRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 14,
+        marginTop: 4,
+    },
+    av: {
+        width: 52,
+        height: 52,
+        borderRadius: 26,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 2,
+        borderColor: "rgba(255,255,255,0.4)",
+    },
+    avTxt: {
+        fontFamily: FONTS.nunito.black,
+        fontSize: SIZES.xl2,
+        color: "#fff",
+    },
+    headerTitle: {
+        fontFamily: FONTS.nunito.black,
+        fontSize: SIZES.xl2,
+        color: "#fff",
+    },
+    headerSub: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: "rgba(255,255,255,0.8)",
+        marginTop: 2,
+    },
+    cardTitle: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.md2,
+        color: COLORS.text,
+        marginBottom: 14,
+    },
+    chipRow: { marginTop: 8 },
+    chip: {
+        paddingHorizontal: 12,
+        paddingVertical: 5,
+        borderRadius: 20,
+        backgroundColor: "#F3F4F6",
+        borderWidth: 1.5,
+        borderColor: COLORS.border,
+    },
+    chipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+    chipTxt: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.sm2,
+        color: COLORS.text2,
+    },
+    chipTxtActive: { color: "#fff" },
+    saveBtn: {
+        backgroundColor: COLORS.accent,
         borderRadius: RADIUS.xl,
         padding: 14,
         alignItems: "center",

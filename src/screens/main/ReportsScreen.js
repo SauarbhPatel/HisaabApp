@@ -507,6 +507,7 @@ export default function ReportsScreen({ navigation }) {
             const apiPeriod = PERIOD_MAP[period] || "month";
             const res = await fetchReportSummary(apiPeriod);
 
+            console.log("Report response:", res);
             if (res.ok) setReport(res.data.report);
             else setError(res.message);
 
@@ -607,7 +608,7 @@ export default function ReportsScreen({ navigation }) {
                 }
             >
                 {/* ── Split Hero ── */}
-                {(useCase === "split" || useCase === "both") && (
+                {useCase === "split" && (
                     <LinearGradient
                         colors={COLORS.gradientGreen}
                         start={{ x: 0.13, y: 0 }}

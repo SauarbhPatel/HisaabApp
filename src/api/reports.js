@@ -51,7 +51,7 @@ export function isoToReadable(iso) {
 // Returns: split block (spending + friends) and/or freelance block (income)
 // ──────────────────────────────────────────────────────────────────────────────
 export async function fetchReportSummary(period = "month") {
-    return apiCall(`/api/reports/summary?period=${period}`);
+    return apiCall(`/api/reports/summary?period=${period}`, { auth: true });
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ export async function fetchReportSummary(period = "month") {
 // Returns: totalSpent, byCategory (all 16), topCategories (top 4), byMonth
 // ──────────────────────────────────────────────────────────────────────────────
 export async function fetchSpendingReport(period = "month") {
-    return apiCall(`/api/reports/spending?period=${period}`);
+    return apiCall(`/api/reports/spending?period=${period}`, { auth: true });
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -67,7 +67,7 @@ export async function fetchSpendingReport(period = "month") {
 // Returns: totalIncome, totalDevPaid, netProfit, incomeByClient, projectIncomeList
 // ──────────────────────────────────────────────────────────────────────────────
 export async function fetchIncomeReport(period = "month") {
-    return apiCall(`/api/reports/income?period=${period}`);
+    return apiCall(`/api/reports/income?period=${period}`, { auth: true });
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ export async function fetchIncomeReport(period = "month") {
 // Returns: owedToYou, youOwe, netBalance, friendCount, settledCount, topOwed
 // ──────────────────────────────────────────────────────────────────────────────
 export async function fetchFriendsReport() {
-    return apiCall("/api/reports/friends");
+    return apiCall("/api/reports/friends", { auth: true });
 }
 
 const COLORS_CAT = [

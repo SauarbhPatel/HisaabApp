@@ -196,6 +196,7 @@ export default function ClientDetailScreen({ navigation, route }) {
                             ) : null}
                         </View>
                     </View>
+
                     <View style={s.headerBtns}>
                         <TouchableOpacity
                             onPress={() =>
@@ -206,7 +207,20 @@ export default function ClientDetailScreen({ navigation, route }) {
                             }
                             style={s.hdrBtn}
                         >
-                            <Text>✏️</Text>
+                            <Text style={s.hdrBtnIcon}>✏️</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() =>
+                                navigation.navigate("ClientStatus", {
+                                    clientId: client._id,
+                                    clientName: client.name,
+                                    currentStatus: client.status,
+                                    onChanged: () => loadData(),
+                                })
+                            }
+                            style={s.hdrBtn}
+                        >
+                            <Text style={s.hdrBtnIcon}>🔄</Text>
                         </TouchableOpacity>
                     </View>
                 </View>

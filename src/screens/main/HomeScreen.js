@@ -409,7 +409,9 @@ export default function HomeScreen({ navigation }) {
         else setLoading(true);
         setError("");
         const res = await fetchDashboard();
-        if (res.ok) setData(res.data);
+
+        console.log(JSON.stringify(res));
+        if (res.ok) setData(res.data.dashboard);
         else setError(res.message);
         setLoading(false);
         setRefreshing(false);
@@ -419,13 +421,79 @@ export default function HomeScreen({ navigation }) {
         load();
     }, []);
 
+    const split = data?.split || {};
+    const freelance = data?.freelance || {};
     // ── Derived data (safe fallbacks) ─────────────────────────────────────────
-    const personal = data?.personal || {};
-    const friends = data?.friends || {};
-    const groups = data?.groups || {};
-    const projects = data?.projects || {};
-    const activity = data?.recentActivity || [];
-    const alerts = data?.urgentAlerts || [];
+    // const personal = data?.personal || {};
+    // const friends = data?.friends || {};
+    // const groups = data?.groups || {};
+    // const projects = data?.projects || {};
+    // const activity = data?.recentActivity || [];
+    // const alerts = data?.urgentAlerts || [];
+
+    // Map to UI-friendly structure
+    const personal = {
+        totalSpent: split.totalSpent,
+        vsLastMonth: split.spentChangePct,
+        monthLabel: "This Month",
+        weeklyBars: data?.miniCharts?.spentByMonth?.map((i) => i.total) || [],
+    };
+
+    const friends = {
+        owedToYou: split.owedToYou,
+        youOwe: split.youOwe,
+        pendingCount: split.friendCount,
+    };
+
+    const groups = {
+        activeCount: split.activeGroups,
+        totalExpenses: split.groupExpenseCount,
+    };
+
+    const projects = {
+        totalReceived: freelance.totalProjectIncome,
+        totalPending: freelance.clientPending,
+        devPaymentsDue: freelance.devPayDue,
+        activeCount: freelance.activeProjectCount,
+        weeklyBars: data?.miniCharts?.incomeByMonth?.map((i) => i.total) || [],
+        weeklyBars2:
+            data?.miniCharts?.projectsByMonth?.map((i) => i.count) || [],
+    };
+
+    // Merge activity (split + freelance)
+    const activity = [
+        ...(split.recentExpenses || []).map((e) => ({
+            id: e._id,
+            title: e.description,
+            subtitle: e.category,
+            amount: -e.amount,
+            icon: "💸",
+            iconBg: "#FEF3C7",
+        })),
+        ...(freelance.recentActivity || []).map((a) => ({
+            id: a.label + a.date,
+            title: a.label,
+            subtitle: a.project || "",
+            amount: a.direction === "in" ? a.amount : -a.amount,
+            icon: a.direction === "in" ? "💰" : "📤",
+            iconBg: a.direction === "in" ? "#DCFCE7" : "#FEE2E2",
+        })),
+    ];
+
+    // Alerts
+    const alerts = [];
+    if (split.youOwe > 0) {
+        alerts.push({
+            message: `You owe ₹${split.youOwe}`,
+            navigate: "Friends",
+        });
+    }
+    if (freelance.devPayDue > 0) {
+        alerts.push({
+            message: `Developer payments pending ₹${freelance.devPayDue}`,
+            navigate: "DevPay",
+        });
+    }
 
     const firstName = user?.name?.split(" ")[0] || "there";
     const monthLabel = personal.monthLabel || "This Month";
@@ -626,7 +694,7 @@ export default function HomeScreen({ navigation }) {
             val: String(projects.activeCount || 0),
             lbl: "PROJECTS",
             color: COLORS.accent2,
-            bars: [2, 3, 2, 4, 3, 3, 3],
+            bars: projects.weeklyBars2 || [5, 7, 8, 6, 4, 5, 7],
         },
     ];
 
@@ -837,7 +905,7 @@ export default function HomeScreen({ navigation }) {
                     {!loading &&
                         activity.map((item, i) => (
                             <ActivityItem
-                                key={item.id || i}
+                                key={`item.date + item.label ${i}`}
                                 item={item}
                                 navigation={navigation}
                             />

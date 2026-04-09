@@ -46,6 +46,7 @@ import AddTransactionScreen from "../screens/forms/AddTransactionScreen";
 import SettleFriendScreen from "../screens/modals/SettleFriendScreen";
 import EditDevInProjectScreen from "../screens/modals/EditDevInProjectScreen";
 import EditClientPayScreen from "../screens/modals/EditClientPayScreen";
+import EditProfileScreen from "../screens/forms/EditProfileScreen";
 
 const Stack = createStackNavigator();
 
@@ -160,6 +161,11 @@ export default function MainStackNavigator() {
             <Stack.Screen
                 name="MyClients"
                 component={MyClientsScreen}
+                options={{ presentation: "card" }}
+            />
+            <Stack.Screen
+                name="EditProfile"
+                component={EditProfileScreen}
                 options={{ presentation: "card" }}
             />
 

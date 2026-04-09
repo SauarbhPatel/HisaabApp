@@ -201,6 +201,20 @@ export default function AddProjectScreen({ navigation, route }) {
     const handleSubmit = async (skipDevs = false) => {
         setError("");
         setLoading(true);
+
+        if (!skipDevs) {
+            const invalidDev = devSlots.find(
+                (sl) => !sl.pay || Number(sl.pay) <= 0,
+            );
+
+            if (invalidDev) {
+                setLoading(false);
+                setError(
+                    `${invalidDev.dev?.name || "Developer"}: Pay amount is missing or invalid`,
+                );
+                return;
+            }
+        }
         const developers = skipDevs
             ? []
             : devSlots

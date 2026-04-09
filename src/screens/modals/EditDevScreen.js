@@ -1,1 +1,1 @@
-export { EditDevScreen as default } from './ModalScreens';
+export { EditDevScreen as default } from "./ModalScreens";

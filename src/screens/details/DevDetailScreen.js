@@ -193,11 +193,25 @@ export default function DevDetailScreen({ navigation, route }) {
                                 navigation.navigate("EditDev", {
                                     devId: dev._id,
                                     dev,
+                                    onSaved: () => loadData(),
                                 })
                             }
                             style={s.hdrBtn}
                         >
-                            <Text>✏️</Text>
+                            <Text style={s.hdrBtnIcon}>✏️</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() =>
+                                navigation.navigate("DevStatus", {
+                                    devId: dev._id,
+                                    devName: dev.name,
+                                    currentStatus: dev.status,
+                                    onChanged: () => loadData(),
+                                })
+                            }
+                            style={s.hdrBtn}
+                        >
+                            <Text style={s.hdrBtnIcon}>🔄</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
