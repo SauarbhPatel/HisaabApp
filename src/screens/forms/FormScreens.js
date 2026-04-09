@@ -6,6 +6,8 @@ import {
     TouchableOpacity,
     TextInput,
     StyleSheet,
+    KeyboardAvoidingView,
+    Platform,
 } from "react-native";
 import { ActivityIndicator, Alert } from "react-native";
 import { createDeveloper } from "../../api/developers";
@@ -18,6 +20,7 @@ import SplitToggle from "../../components/shared/SplitToggle";
 import { COLORS, SHADOWS } from "../../theme/colors";
 import { FONTS, SIZES, RADIUS } from "../../theme/typography";
 import { FRIENDS } from "../../data/mockData";
+import { addClientPayment } from "../../api/projects";
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 function FormField({ label, children }) {
@@ -62,27 +65,196 @@ function Header({ colors, title, onBack, insets }) {
         </LinearGradient>
     );
 }
-function SubmitBtn({ label, onPress }) {
+function SubmitBtn({ label, onPress, loading }) {
     return (
         <TouchableOpacity
-            style={shared.submitBtn}
+            style={[shared.submitBtn, loading && { opacity: 0.65 }]}
             onPress={onPress}
+            disabled={!!loading}
             activeOpacity={0.85}
         >
-            <Text style={shared.submitBtnText}>{label}</Text>
+            {loading ? (
+                <ActivityIndicator color="#fff" />
+            ) : (
+                <Text style={shared.submitBtnText}>{label}</Text>
+            )}
         </TouchableOpacity>
     );
 }
 
 // ─── AddGroupScreen ───────────────────────────────────────────────────────────
-export function AddGroupScreen({ navigation }) {
+// export function AddGroupScreen({ navigation }) {
+//     const insets = useSafeAreaInsets();
+//     const [name, setName] = useState("");
+//     const [groupType, setGroupType] = useState("🏠 Home");
+//     const [selectedIcon, setSelectedIcon] = useState("🏠");
+//     const ICONS = ["🏠", "✈️", "🎉", "💼", "🍺", "🏖️"];
+//     const GROUP_TYPES = ["🏠 Home", "✈️ Trip", "💼 Work", "🎉 Other"];
+//     const [members, setMembers] = useState(["priya", "amit"]);
+
+//     return (
+//         <View style={shared.container}>
+//             <Header
+//                 colors={COLORS.gradientBlue}
+//                 title="👥 Create New Group"
+//                 onBack={() => navigation.goBack()}
+//                 insets={insets}
+//             />
+//             <ScrollView
+//                 showsVerticalScrollIndicator={false}
+//                 keyboardShouldPersistTaps="handled"
+//             >
+//                 <View style={shared.body}>
+//                     <View style={shared.card}>
+//                         <Text style={shared.cardTitle}>📝 Group Info</Text>
+//                         <View style={shared.row}>
+//                             <View>
+//                                 <Text style={shared.label}>Icon</Text>
+//                                 <View style={styles.iconGrid}>
+//                                     {ICONS.map((ic) => (
+//                                         <TouchableOpacity
+//                                             key={ic}
+//                                             onPress={() => setSelectedIcon(ic)}
+//                                             style={[
+//                                                 styles.iconOpt,
+//                                                 selectedIcon === ic &&
+//                                                     styles.iconOptActive,
+//                                             ]}
+//                                         >
+//                                             <Text style={{ fontSize: 18 }}>
+//                                                 {ic}
+//                                             </Text>
+//                                         </TouchableOpacity>
+//                                     ))}
+//                                 </View>
+//                             </View>
+//                             <View style={{ flex: 1 }}>
+//                                 <FormField label="Group Name">
+//                                     <Input
+//                                         value={name}
+//                                         onChangeText={setName}
+//                                         placeholder="e.g. Flat Koramangala"
+//                                     />
+//                                 </FormField>
+//                             </View>
+//                         </View>
+//                         <FormField label="Type">
+//                             <SplitToggle
+//                                 value={groupType}
+//                                 onChange={setGroupType}
+//                                 options={GROUP_TYPES}
+//                             />
+//                         </FormField>
+//                     </View>
+
+//                     <View style={shared.card}>
+//                         <Text style={shared.cardTitle}>👥 Add Members</Text>
+//                         {FRIENDS.map((friend) => (
+//                             <View key={friend.id} style={styles.memberRow}>
+//                                 <View
+//                                     style={[
+//                                         styles.memberAv,
+//                                         { backgroundColor: friend.color },
+//                                     ]}
+//                                 >
+//                                     <Text style={styles.memberAvText}>
+//                                         {friend.initials}
+//                                     </Text>
+//                                 </View>
+//                                 <Text style={styles.memberName}>
+//                                     {friend.name}
+//                                 </Text>
+//                                 <TouchableOpacity
+//                                     onPress={() =>
+//                                         setMembers((m) =>
+//                                             m.includes(friend.id)
+//                                                 ? m.filter(
+//                                                       (id) => id !== friend.id,
+//                                                   )
+//                                                 : [...m, friend.id],
+//                                         )
+//                                     }
+//                                     style={[
+//                                         styles.memberToggle,
+//                                         members.includes(friend.id) &&
+//                                             styles.memberToggleActive,
+//                                     ]}
+//                                 >
+//                                     <Text style={styles.memberToggleText}>
+//                                         {members.includes(friend.id)
+//                                             ? "✓"
+//                                             : "+"}
+//                                     </Text>
+//                                 </TouchableOpacity>
+//                             </View>
+//                         ))}
+//                     </View>
+
+//                     <SubmitBtn
+//                         label="✅ Create Group"
+//                         onPress={() => navigation.goBack()}
+//                     />
+//                     <View style={{ height: 30 }} />
+//                 </View>
+//             </ScrollView>
+//         </View>
+//     );
+// }
+export function AddGroupScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
+    const { onCreated } = route?.params || {};
     const [name, setName] = useState("");
-    const [groupType, setGroupType] = useState("🏠 Home");
     const [selectedIcon, setSelectedIcon] = useState("🏠");
-    const ICONS = ["🏠", "✈️", "🎉", "💼", "🍺", "🏖️"];
-    const GROUP_TYPES = ["🏠 Home", "✈️ Trip", "💼 Work", "🎉 Other"];
-    const [members, setMembers] = useState(["priya", "amit"]);
+    const [groupType, setGroupType] = useState("home");
+    const [memberName, setMemberName] = useState("");
+    const [memberPhone, setMemberPhone] = useState("");
+    const [extraMembers, setExtraMembers] = useState([]); // [{ name, phone? }]
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    const ICONS = ["🏠", "✈️", "🎉", "💼", "🍺", "🏖️", "👥", "🎓"];
+    const TYPE_OPTS = [
+        { id: "home", label: "🏠 Home" },
+        { id: "trip", label: "✈️ Trip" },
+        { id: "work", label: "💼 Work" },
+        { id: "other", label: "🎉 Other" },
+    ];
+
+    const addMember = () => {
+        if (!memberName.trim()) return;
+        setExtraMembers((prev) => [
+            ...prev,
+            { name: memberName.trim(), phone: memberPhone.trim() || undefined },
+        ]);
+        setMemberName("");
+        setMemberPhone("");
+    };
+
+    const removeMember = (idx) =>
+        setExtraMembers((prev) => prev.filter((_, i) => i !== idx));
+
+    const handleCreate = async () => {
+        setError("");
+        if (!name.trim()) {
+            setError("Group name is required.");
+            return;
+        }
+        setLoading(true);
+        const { createGroup } = require("../../api/groups");
+        const res = await createGroup({
+            name: name.trim(),
+            icon: selectedIcon,
+            type: groupType,
+            members: extraMembers,
+        });
+        setLoading(false);
+        if (res.ok) {
+            if (onCreated) onCreated();
+            navigation.goBack();
+        } else {
+            setError(res.message);
+        }
+    };
 
     return (
         <View style={shared.container}>
@@ -97,6 +269,13 @@ export function AddGroupScreen({ navigation }) {
                 keyboardShouldPersistTaps="handled"
             >
                 <View style={shared.body}>
+                    {!!error && (
+                        <View style={styles.errorBox}>
+                            <Text style={styles.errorTxt}>⚠️ {error}</Text>
+                        </View>
+                    )}
+
+                    {/* Group Info */}
                     <View style={shared.card}>
                         <Text style={shared.cardTitle}>📝 Group Info</Text>
                         <View style={shared.row}>
@@ -131,51 +310,118 @@ export function AddGroupScreen({ navigation }) {
                             </View>
                         </View>
                         <FormField label="Type">
-                            <SplitToggle
-                                value={groupType}
-                                onChange={setGroupType}
-                                options={GROUP_TYPES}
-                            />
+                            <View style={styles.typeRow}>
+                                {TYPE_OPTS.map((opt) => (
+                                    <TouchableOpacity
+                                        key={opt.id}
+                                        onPress={() => setGroupType(opt.id)}
+                                        style={[
+                                            styles.typeOpt,
+                                            groupType === opt.id &&
+                                                styles.typeOptActive,
+                                        ]}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.typeOptTxt,
+                                                groupType === opt.id && {
+                                                    color: COLORS.primary,
+                                                },
+                                            ]}
+                                        >
+                                            {opt.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
                         </FormField>
                     </View>
 
+                    {/* Add Members */}
                     <View style={shared.card}>
-                        <Text style={shared.cardTitle}>👥 Add Members</Text>
-                        {FRIENDS.map((friend) => (
-                            <View key={friend.id} style={styles.memberRow}>
+                        <Text style={shared.cardTitle}>
+                            👥 Add Members (optional)
+                        </Text>
+                        <Text
+                            style={{
+                                fontFamily: FONTS.dmSans.regular,
+                                fontSize: SIZES.base,
+                                color: COLORS.text2,
+                                marginBottom: 12,
+                            }}
+                        >
+                            You will be added automatically. Add other members
+                            here.
+                        </Text>
+
+                        {/* Name + phone row */}
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                gap: 8,
+                                marginBottom: 8,
+                            }}
+                        >
+                            <View style={{ flex: 1 }}>
+                                <Input
+                                    value={memberName}
+                                    onChangeText={setMemberName}
+                                    placeholder="Member name"
+                                />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Input
+                                    value={memberPhone}
+                                    onChangeText={setMemberPhone}
+                                    placeholder="Phone (optional)"
+                                    keyboardType="phone-pad"
+                                />
+                            </View>
+                            <TouchableOpacity
+                                onPress={addMember}
+                                style={styles.addMemberBtn}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={styles.addMemberBtnTxt}>+</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Added members list */}
+                        {extraMembers.map((m, i) => (
+                            <View key={i} style={styles.addedMemberRow}>
                                 <View
                                     style={[
                                         styles.memberAv,
-                                        { backgroundColor: friend.color },
+                                        {
+                                            backgroundColor:
+                                                "#" +
+                                                ((i * 3127) % 0xffffff)
+                                                    .toString(16)
+                                                    .padStart(6, "0"),
+                                        },
                                     ]}
                                 >
                                     <Text style={styles.memberAvText}>
-                                        {friend.initials}
+                                        {m.name.slice(0, 2).toUpperCase()}
                                     </Text>
                                 </View>
                                 <Text style={styles.memberName}>
-                                    {friend.name}
+                                    {m.name}
+                                    {m.phone ? ` · ${m.phone}` : ""}
                                 </Text>
                                 <TouchableOpacity
-                                    onPress={() =>
-                                        setMembers((m) =>
-                                            m.includes(friend.id)
-                                                ? m.filter(
-                                                      (id) => id !== friend.id,
-                                                  )
-                                                : [...m, friend.id],
-                                        )
-                                    }
-                                    style={[
-                                        styles.memberToggle,
-                                        members.includes(friend.id) &&
-                                            styles.memberToggleActive,
-                                    ]}
+                                    onPress={() => removeMember(i)}
+                                    style={styles.removeMemberBtn}
                                 >
-                                    <Text style={styles.memberToggleText}>
-                                        {members.includes(friend.id)
-                                            ? "✓"
-                                            : "+"}
+                                    <Text
+                                        style={{
+                                            color: COLORS.danger,
+                                            fontFamily: FONTS.nunito.bold,
+                                            fontSize: SIZES.md,
+                                        }}
+                                    >
+                                        ✕
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -183,8 +429,9 @@ export function AddGroupScreen({ navigation }) {
                     </View>
 
                     <SubmitBtn
-                        label="✅ Create Group"
-                        onPress={() => navigation.goBack()}
+                        label={loading ? "..." : "✅ Create Group"}
+                        onPress={handleCreate}
+                        loading={loading}
                     />
                     <View style={{ height: 30 }} />
                 </View>
@@ -343,166 +590,431 @@ export function AddFriendScreen({ navigation }) {
 }
 
 // ─── AddClientPayScreen ───────────────────────────────────────────────────────
+// export function AddClientPayScreen({ navigation, route }) {
+//     const insets = useSafeAreaInsets();
+//     const [label, setLabel] = useState("");
+//     const [amount, setAmount] = useState("");
+//     const [date, setDate] = useState("22/03/2026");
+//     const [payMethod, setPayMethod] = useState("upi");
+//     const [ref, setRef] = useState("");
+//     const [note, setNote] = useState("");
+
+//     return (
+//         <View style={shared.container}>
+//             <Header
+//                 colors={COLORS.gradientBlue}
+//                 title="📥 Record Client Payment"
+//                 onBack={() => navigation.goBack()}
+//                 insets={insets}
+//             />
+//             <ScrollView
+//                 showsVerticalScrollIndicator={false}
+//                 keyboardShouldPersistTaps="handled"
+//             >
+//                 <View style={shared.body}>
+//                     {/* Project info banner */}
+//                     <LinearGradient
+//                         colors={COLORS.gradientBlue}
+//                         style={styles.projectBanner}
+//                     >
+//                         <Text style={styles.projectBannerSub}>
+//                             Recording payment for
+//                         </Text>
+//                         <Text style={styles.projectBannerTitle}>
+//                             Flatshare Karo (Development)
+//                         </Text>
+//                         <View style={styles.projectBannerStats}>
+//                             <Text style={styles.projectBannerStat}>
+//                                 Total: ₹10,000
+//                             </Text>
+//                             <Text
+//                                 style={[
+//                                     styles.projectBannerStat,
+//                                     { color: "#A7F3D0" },
+//                                 ]}
+//                             >
+//                                 Received: ₹7,000
+//                             </Text>
+//                             <Text
+//                                 style={[
+//                                     styles.projectBannerStat,
+//                                     { color: "#FCA5A5" },
+//                                 ]}
+//                             >
+//                                 Due: ₹3,000
+//                             </Text>
+//                         </View>
+//                     </LinearGradient>
+
+//                     <View style={shared.card}>
+//                         <FormField label="Payment Label">
+//                             <Input
+//                                 value={label}
+//                                 onChangeText={setLabel}
+//                                 placeholder="e.g. Final Payment, Milestone 2..."
+//                             />
+//                         </FormField>
+//                         <View style={shared.twoCol}>
+//                             <View style={{ flex: 1 }}>
+//                                 <FormField label="Amount (₹)">
+//                                     <Input
+//                                         value={amount}
+//                                         onChangeText={setAmount}
+//                                         placeholder="₹3,000"
+//                                         keyboardType="numeric"
+//                                     />
+//                                 </FormField>
+//                             </View>
+//                             <View style={{ flex: 1 }}>
+//                                 <FormField label="Date Received">
+//                                     <Input
+//                                         value={date}
+//                                         onChangeText={setDate}
+//                                     />
+//                                 </FormField>
+//                             </View>
+//                         </View>
+//                         <FormField label="Payment Method">
+//                             <PaymentMethodPicker
+//                                 value={payMethod}
+//                                 onChange={setPayMethod}
+//                                 options={[
+//                                     {
+//                                         id: "upi",
+//                                         icon: "📱",
+//                                         label: "UPI / PhonePe / GPay",
+//                                     },
+//                                     {
+//                                         id: "bank",
+//                                         icon: "🏦",
+//                                         label: "Bank Transfer / NEFT",
+//                                     },
+//                                     { id: "cash", icon: "💵", label: "Cash" },
+//                                     {
+//                                         id: "cheque",
+//                                         icon: "🧾",
+//                                         label: "Cheque",
+//                                     },
+//                                 ]}
+//                             />
+//                         </FormField>
+//                         <FormField label="Transaction ID / Reference (optional)">
+//                             <Input
+//                                 value={ref}
+//                                 onChangeText={setRef}
+//                                 placeholder="e.g. UPI Ref: 123456789"
+//                             />
+//                         </FormField>
+//                         <FormField label="Notes">
+//                             <Input
+//                                 value={note}
+//                                 onChangeText={setNote}
+//                                 placeholder="e.g. Received after follow-up call"
+//                             />
+//                         </FormField>
+//                         <View style={styles.summaryBox}>
+//                             <Text style={styles.summaryTitle}>
+//                                 After this payment
+//                             </Text>
+//                             <View style={styles.summaryRow}>
+//                                 <Text style={styles.summaryLabel}>
+//                                     Total received
+//                                 </Text>
+//                                 <Text style={styles.summaryVal}>
+//                                     ₹10,000 / ₹10,000
+//                                 </Text>
+//                             </View>
+//                             <View style={styles.summaryRow}>
+//                                 <Text style={styles.summaryLabel}>
+//                                     Project status
+//                                 </Text>
+//                                 <Text
+//                                     style={[
+//                                         styles.summaryVal,
+//                                         { color: COLORS.primary },
+//                                     ]}
+//                                 >
+//                                     ✅ Fully Paid
+//                                 </Text>
+//                             </View>
+//                         </View>
+//                         <SubmitBtn
+//                             label="✅ Save Payment Record"
+//                             onPress={() => navigation.goBack()}
+//                         />
+//                     </View>
+//                     <View style={{ height: 30 }} />
+//                 </View>
+//             </ScrollView>
+//         </View>
+//     );
+// }
 export function AddClientPayScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
+    const {
+        projectId,
+        projectName = "",
+        totalBilled = 0,
+        totalReceived = 0,
+        totalPending = 0,
+        onAdded,
+    } = route?.params || {};
+
     const [label, setLabel] = useState("");
     const [amount, setAmount] = useState("");
-    const [date, setDate] = useState("22/03/2026");
+    const [date, setDate] = useState(() => {
+        const d = new Date();
+        return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+    });
     const [payMethod, setPayMethod] = useState("upi");
     const [ref, setRef] = useState("");
     const [note, setNote] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    const newTotal = totalReceived + Number(amount || 0);
+    const fullyPaid = totalBilled > 0 && newTotal >= totalBilled;
+
+    const handleSubmit = async () => {
+        setError("");
+        if (!label.trim()) {
+            setError("Payment label is required.");
+            return;
+        }
+        if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+            setError("Valid amount is required.");
+            return;
+        }
+        if (!projectId) {
+            setError("Project info missing.");
+            return;
+        }
+        setLoading(true);
+        const res = await addClientPayment(projectId, {
+            label,
+            amount,
+            date,
+            method: payMethod,
+            reference: ref,
+            note,
+            status: "paid",
+        });
+        setLoading(false);
+        if (res.ok) {
+            if (onAdded) onAdded();
+            navigation.goBack();
+        } else setError(res.message);
+    };
 
     return (
-        <View style={shared.container}>
-            <Header
-                colors={COLORS.gradientBlue}
-                title="📥 Record Client Payment"
-                onBack={() => navigation.goBack()}
-                insets={insets}
-            />
-            <ScrollView
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-            >
-                <View style={shared.body}>
-                    {/* Project info banner */}
-                    <LinearGradient
-                        colors={COLORS.gradientBlue}
-                        style={styles.projectBanner}
-                    >
-                        <Text style={styles.projectBannerSub}>
-                            Recording payment for
-                        </Text>
-                        <Text style={styles.projectBannerTitle}>
-                            Flatshare Karo (Development)
-                        </Text>
-                        <View style={styles.projectBannerStats}>
-                            <Text style={styles.projectBannerStat}>
-                                Total: ₹10,000
-                            </Text>
-                            <Text
-                                style={[
-                                    styles.projectBannerStat,
-                                    { color: "#A7F3D0" },
-                                ]}
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+            <View style={shared.container}>
+                <Header
+                    colors={COLORS.gradientBlue}
+                    title="📥 Record Client Payment"
+                    onBack={() => navigation.goBack()}
+                    insets={insets}
+                />
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <View style={shared.body}>
+                        {!!error && (
+                            <View
+                                style={{
+                                    backgroundColor: "#FEF2F2",
+                                    borderRadius: 8,
+                                    padding: 10,
+                                    borderLeftWidth: 3,
+                                    borderLeftColor: "#EF4444",
+                                    marginBottom: 12,
+                                }}
                             >
-                                Received: ₹7,000
-                            </Text>
-                            <Text
-                                style={[
-                                    styles.projectBannerStat,
-                                    { color: "#FCA5A5" },
-                                ]}
-                            >
-                                Due: ₹3,000
-                            </Text>
-                        </View>
-                    </LinearGradient>
+                                <Text
+                                    style={{ color: "#EF4444", fontSize: 13 }}
+                                >
+                                    ⚠️ {error}
+                                </Text>
+                            </View>
+                        )}
 
-                    <View style={shared.card}>
-                        <FormField label="Payment Label">
-                            <Input
-                                value={label}
-                                onChangeText={setLabel}
-                                placeholder="e.g. Final Payment, Milestone 2..."
-                            />
-                        </FormField>
-                        <View style={shared.twoCol}>
-                            <View style={{ flex: 1 }}>
-                                <FormField label="Amount (₹)">
-                                    <Input
-                                        value={amount}
-                                        onChangeText={setAmount}
-                                        placeholder="₹3,000"
-                                        keyboardType="numeric"
-                                    />
-                                </FormField>
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <FormField label="Date Received">
-                                    <Input
-                                        value={date}
-                                        onChangeText={setDate}
-                                    />
-                                </FormField>
-                            </View>
-                        </View>
-                        <FormField label="Payment Method">
-                            <PaymentMethodPicker
-                                value={payMethod}
-                                onChange={setPayMethod}
-                                options={[
-                                    {
-                                        id: "upi",
-                                        icon: "📱",
-                                        label: "UPI / PhonePe / GPay",
-                                    },
-                                    {
-                                        id: "bank",
-                                        icon: "🏦",
-                                        label: "Bank Transfer / NEFT",
-                                    },
-                                    { id: "cash", icon: "💵", label: "Cash" },
-                                    {
-                                        id: "cheque",
-                                        icon: "🧾",
-                                        label: "Cheque",
-                                    },
-                                ]}
-                            />
-                        </FormField>
-                        <FormField label="Transaction ID / Reference (optional)">
-                            <Input
-                                value={ref}
-                                onChangeText={setRef}
-                                placeholder="e.g. UPI Ref: 123456789"
-                            />
-                        </FormField>
-                        <FormField label="Notes">
-                            <Input
-                                value={note}
-                                onChangeText={setNote}
-                                placeholder="e.g. Received after follow-up call"
-                            />
-                        </FormField>
-                        <View style={styles.summaryBox}>
-                            <Text style={styles.summaryTitle}>
-                                After this payment
+                        {/* Project info banner */}
+                        <LinearGradient
+                            colors={COLORS.gradientBlue}
+                            style={styles.projectBanner}
+                        >
+                            <Text style={styles.projectBannerSub}>
+                                Recording payment for
                             </Text>
-                            <View style={styles.summaryRow}>
-                                <Text style={styles.summaryLabel}>
-                                    Total received
-                                </Text>
-                                <Text style={styles.summaryVal}>
-                                    ₹10,000 / ₹10,000
-                                </Text>
-                            </View>
-                            <View style={styles.summaryRow}>
-                                <Text style={styles.summaryLabel}>
-                                    Project status
+                            <Text style={styles.projectBannerTitle}>
+                                {projectName || "Project"}
+                            </Text>
+                            <View style={styles.projectBannerStats}>
+                                <Text style={styles.projectBannerStat}>
+                                    Total: ₹
+                                    {totalBilled.toLocaleString("en-IN")}
                                 </Text>
                                 <Text
                                     style={[
-                                        styles.summaryVal,
-                                        { color: COLORS.primary },
+                                        styles.projectBannerStat,
+                                        { color: "#A7F3D0" },
                                     ]}
                                 >
-                                    ✅ Fully Paid
+                                    Received: ₹
+                                    {totalReceived.toLocaleString("en-IN")}
+                                </Text>
+                                <Text
+                                    style={[
+                                        styles.projectBannerStat,
+                                        { color: "#FCA5A5" },
+                                    ]}
+                                >
+                                    Due: ₹{totalPending.toLocaleString("en-IN")}
                                 </Text>
                             </View>
+                        </LinearGradient>
+
+                        <View style={shared.card}>
+                            <FormField label="Payment Label">
+                                <Input
+                                    value={label}
+                                    onChangeText={setLabel}
+                                    placeholder="e.g. Final Payment, Milestone 2..."
+                                />
+                            </FormField>
+                            <View style={shared.twoCol}>
+                                <View style={{ flex: 1 }}>
+                                    <FormField label="Amount (₹)">
+                                        <Input
+                                            value={amount}
+                                            onChangeText={setAmount}
+                                            placeholder="e.g. 5000"
+                                            keyboardType="numeric"
+                                        />
+                                    </FormField>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <FormField label="Date Received">
+                                        <Input
+                                            value={date}
+                                            onChangeText={setDate}
+                                            placeholder="DD/MM/YYYY"
+                                            keyboardType="numeric"
+                                        />
+                                    </FormField>
+                                </View>
+                            </View>
+                            <FormField label="Payment Method">
+                                <PaymentMethodPicker
+                                    value={payMethod}
+                                    onChange={setPayMethod}
+                                    options={[
+                                        {
+                                            id: "upi",
+                                            icon: "📱",
+                                            label: "UPI / PhonePe / GPay",
+                                        },
+                                        {
+                                            id: "bank",
+                                            icon: "🏦",
+                                            label: "Bank Transfer / NEFT",
+                                        },
+                                        {
+                                            id: "cash",
+                                            icon: "💵",
+                                            label: "Cash",
+                                        },
+                                        {
+                                            id: "cheque",
+                                            icon: "🧾",
+                                            label: "Cheque",
+                                        },
+                                    ]}
+                                />
+                            </FormField>
+                            <FormField label="Transaction ID / Reference (optional)">
+                                <Input
+                                    value={ref}
+                                    onChangeText={setRef}
+                                    placeholder="e.g. UPI Ref: 123456789"
+                                />
+                            </FormField>
+                            <FormField label="Notes">
+                                <Input
+                                    value={note}
+                                    onChangeText={setNote}
+                                    placeholder="e.g. Received after follow-up call"
+                                />
+                            </FormField>
+
+                            {amount ? (
+                                <View style={styles.summaryBox}>
+                                    <Text style={styles.summaryTitle}>
+                                        After this payment
+                                    </Text>
+                                    <View style={styles.summaryRow}>
+                                        <Text style={styles.summaryLabel}>
+                                            Total received
+                                        </Text>
+                                        <Text style={styles.summaryVal}>
+                                            ₹{newTotal.toLocaleString("en-IN")}{" "}
+                                            / ₹
+                                            {totalBilled.toLocaleString(
+                                                "en-IN",
+                                            )}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.summaryRow}>
+                                        <Text style={styles.summaryLabel}>
+                                            Status
+                                        </Text>
+                                        <Text
+                                            style={[
+                                                styles.summaryVal,
+                                                {
+                                                    color: fullyPaid
+                                                        ? COLORS.primary
+                                                        : COLORS.accent,
+                                                },
+                                            ]}
+                                        >
+                                            {fullyPaid
+                                                ? "✅ Fully Paid"
+                                                : `₹${Math.max(0, totalBilled - newTotal).toLocaleString("en-IN")} still pending`}
+                                        </Text>
+                                    </View>
+                                </View>
+                            ) : null}
+
+                            <TouchableOpacity
+                                style={[
+                                    shared.submitBtn,
+                                    loading && { opacity: 0.65 },
+                                ]}
+                                onPress={handleSubmit}
+                                disabled={loading}
+                                activeOpacity={0.85}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator color="#fff" />
+                                ) : (
+                                    <Text style={shared.submitBtnText}>
+                                        ✅ Save Payment Record
+                                    </Text>
+                                )}
+                            </TouchableOpacity>
                         </View>
-                        <SubmitBtn
-                            label="✅ Save Payment Record"
-                            onPress={() => navigation.goBack()}
-                        />
+                        <View style={{ height: 30 }} />
                     </View>
-                    <View style={{ height: 30 }} />
-                </View>
-            </ScrollView>
-        </View>
+                </ScrollView>
+            </View>
+        </KeyboardAvoidingView>
     );
 }
-
 // ─── AddDevFormScreen ─────────────────────────────────────────────────────────
 export function AddDevFormScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
@@ -808,19 +1320,171 @@ export function AddClientFormScreen({ navigation, route }) {
 }
 
 // ─── GroupAddExpenseScreen ─────────────────────────────────────────────────────
+// export function GroupAddExpenseScreen({ navigation, route }) {
+//     const insets = useSafeAreaInsets();
+//     const [amount, setAmount] = useState("0");
+//     const [description, setDescription] = useState("");
+//     const [paidBy, setPaidBy] = useState("rahul");
+//     const [splitType, setSplitType] = useState("= Equal");
+//     const [date, setDate] = useState("22/03/2026");
+//     const members = [
+//         { id: "rahul", label: "Rahul (You)" },
+//         { id: "priya", label: "Priya" },
+//         { id: "amit", label: "Amit" },
+//         { id: "neha", label: "Neha" },
+//     ];
+
+//     return (
+//         <View style={shared.container}>
+//             <Header
+//                 colors={COLORS.gradientBlue}
+//                 title="➕ Add Group Expense"
+//                 onBack={() => navigation.goBack()}
+//                 insets={insets}
+//             />
+//             <ScrollView
+//                 showsVerticalScrollIndicator={false}
+//                 keyboardShouldPersistTaps="handled"
+//             >
+//                 <View style={shared.body}>
+//                     <View style={styles.amtBlock}>
+//                         <Text style={styles.amtLbl}>Total Amount</Text>
+//                         <TextInput
+//                             style={styles.amtInput}
+//                             value={`₹ ${amount}`}
+//                             onChangeText={(v) =>
+//                                 setAmount(v.replace(/[^0-9]/g, ""))
+//                             }
+//                             keyboardType="numeric"
+//                             selectTextOnFocus
+//                         />
+//                     </View>
+//                     <View style={shared.card}>
+//                         <FormField label="Description">
+//                             <Input
+//                                 value={description}
+//                                 onChangeText={setDescription}
+//                                 placeholder="e.g. Electricity Bill, Groceries..."
+//                             />
+//                         </FormField>
+//                         <FormField label="Paid by">
+//                             <View style={styles.paidByRow}>
+//                                 {members.map((m) => (
+//                                     <TouchableOpacity
+//                                         key={m.id}
+//                                         onPress={() => setPaidBy(m.id)}
+//                                         style={[
+//                                             styles.paidByOpt,
+//                                             paidBy === m.id &&
+//                                                 styles.paidByOptActive,
+//                                         ]}
+//                                     >
+//                                         <Text
+//                                             style={[
+//                                                 styles.paidByText,
+//                                                 paidBy === m.id &&
+//                                                     styles.paidByTextActive,
+//                                             ]}
+//                                         >
+//                                             {m.label}
+//                                         </Text>
+//                                     </TouchableOpacity>
+//                                 ))}
+//                             </View>
+//                         </FormField>
+//                         <FormField label="Split">
+//                             <SplitToggle
+//                                 value={splitType}
+//                                 onChange={setSplitType}
+//                             />
+//                         </FormField>
+//                         <FormField label="Date">
+//                             <Input value={date} onChangeText={setDate} />
+//                         </FormField>
+//                         <SubmitBtn
+//                             label="✅ Save Expense"
+//                             onPress={() => navigation.goBack()}
+//                         />
+//                     </View>
+//                     <View style={{ height: 30 }} />
+//                 </View>
+//             </ScrollView>
+//         </View>
+//     );
+// }
 export function GroupAddExpenseScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
-    const [amount, setAmount] = useState("0");
+    const {
+        groupId,
+        groupName = "",
+        members = [],
+        onAdded,
+    } = route?.params || {};
+
+    const [amount, setAmount] = useState("");
     const [description, setDescription] = useState("");
-    const [paidBy, setPaidBy] = useState("rahul");
-    const [splitType, setSplitType] = useState("= Equal");
-    const [date, setDate] = useState("22/03/2026");
-    const members = [
-        { id: "rahul", label: "Rahul (You)" },
-        { id: "priya", label: "Priya" },
-        { id: "amit", label: "Amit" },
-        { id: "neha", label: "Neha" },
+    const [category, setCategory] = useState("other");
+    const [paidBy, setPaidBy] = useState(""); // userId of payer
+    const [splitType, setSplitType] = useState("equal");
+    const [date, setDate] = useState(() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    });
+    const [note, setNote] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    const CATS = [
+        // { id: 'food','🍕' },{ id: 'bills','⚡' },{ id: 'travel','🚌' },
+        // { id: 'shopping','🛒' },{ id: 'entertainment','🎬' },{ id: 'rent','🏠' },
+        // { id: 'drinks','🍺' },{ id: 'other','➕' },
+        { id: "food", emoji: "🍕" },
+        { id: "bills", emoji: "⚡" },
+        { id: "travel", emoji: "🚌" },
+        { id: "shopping", emoji: "🛒" },
+        { id: "entertainment", emoji: "🎬" },
+        { id: "rent", emoji: "🏠" },
+        { id: "drinks", emoji: "🍺" },
+        { id: "other", emoji: "➕" },
     ];
+
+    const SPLIT_OPTS = [
+        { id: "equal", label: "= Equal" },
+        { id: "percent", label: "% Percent" },
+        { id: "custom", label: "✏ Custom" },
+    ];
+
+    const handleSave = async () => {
+        setError("");
+        if (!description.trim()) {
+            setError("Description is required.");
+            return;
+        }
+        if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+            setError("Enter a valid amount.");
+            return;
+        }
+        setLoading(true);
+        const { addGroupExpense } = require("../../api/groups");
+        const payload = {
+            description: description.trim(),
+            amount: Number(amount),
+            category,
+            splitType,
+            note: note || undefined,
+            date,
+        };
+        if (paidBy) payload.paidBy = paidBy;
+        console.log(payload);
+        const res = await addGroupExpense(groupId, payload);
+        setLoading(false);
+        if (res.ok) {
+            if (onAdded) onAdded();
+            navigation.goBack();
+        } else {
+            setError(res.message);
+        }
+    };
 
     return (
         <View style={shared.container}>
@@ -835,19 +1499,38 @@ export function GroupAddExpenseScreen({ navigation, route }) {
                 keyboardShouldPersistTaps="handled"
             >
                 <View style={shared.body}>
+                    {!!error && (
+                        <View style={styles.errorBox}>
+                            <Text style={styles.errorTxt}>⚠️ {error}</Text>
+                        </View>
+                    )}
+
+                    {groupName ? (
+                        <View style={[styles.groupBanner]}>
+                            <Text style={styles.groupBannerTxt}>
+                                👥 {groupName}
+                            </Text>
+                        </View>
+                    ) : null}
+
+                    {/* Amount block */}
                     <View style={styles.amtBlock}>
                         <Text style={styles.amtLbl}>Total Amount</Text>
                         <TextInput
                             style={styles.amtInput}
-                            value={`₹ ${amount}`}
+                            value={amount}
                             onChangeText={(v) =>
-                                setAmount(v.replace(/[^0-9]/g, ""))
+                                setAmount(v.replace(/[^0-9.]/g, ""))
                             }
                             keyboardType="numeric"
+                            placeholder="0"
+                            placeholderTextColor="rgba(255,255,255,0.4)"
                             selectTextOnFocus
                         />
                     </View>
+
                     <View style={shared.card}>
+                        {/* Description */}
                         <FormField label="Description">
                             <Input
                                 value={description}
@@ -855,45 +1538,158 @@ export function GroupAddExpenseScreen({ navigation, route }) {
                                 placeholder="e.g. Electricity Bill, Groceries..."
                             />
                         </FormField>
-                        <FormField label="Paid by">
-                            <View style={styles.paidByRow}>
-                                {members.map((m) => (
+
+                        {/* Category row */}
+                        <FormField label="Category">
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                style={{ marginHorizontal: -2 }}
+                            >
+                                <View
+                                    style={{
+                                        flexDirection: "row",
+                                        gap: 8,
+                                        paddingHorizontal: 2,
+                                    }}
+                                >
+                                    {CATS.map(({ id, ...rest }) => {
+                                        const em = Object.values(rest)[0];
+                                        return (
+                                            <TouchableOpacity
+                                                key={id}
+                                                onPress={() => setCategory(id)}
+                                                style={[
+                                                    styles.catChip,
+                                                    category === id &&
+                                                        styles.catChipActive,
+                                                ]}
+                                                activeOpacity={0.8}
+                                            >
+                                                <Text style={{ fontSize: 16 }}>
+                                                    {em}
+                                                </Text>
+                                                <Text
+                                                    style={[
+                                                        styles.catChipTxt,
+                                                        category === id && {
+                                                            color: COLORS.primary,
+                                                        },
+                                                    ]}
+                                                >
+                                                    {id}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                            </ScrollView>
+                        </FormField>
+
+                        {/* Paid by — show members */}
+                        {members.length > 0 && (
+                            <FormField label="Paid by">
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                >
+                                    <View
+                                        style={{
+                                            flexDirection: "row",
+                                            gap: 8,
+                                            paddingHorizontal: 2,
+                                        }}
+                                    >
+                                        {members.map((m) => {
+                                            const nm =
+                                                m.user?.name || m.name || "?";
+                                            const uid = m.user?._id || m._id;
+                                            const sel = paidBy === uid;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={m._id}
+                                                    onPress={() =>
+                                                        setPaidBy(uid)
+                                                    }
+                                                    style={[
+                                                        styles.paidByOpt,
+                                                        sel &&
+                                                            styles.paidByOptActive,
+                                                    ]}
+                                                    activeOpacity={0.8}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.paidByText,
+                                                            sel &&
+                                                                styles.paidByTextActive,
+                                                        ]}
+                                                    >
+                                                        {nm.split(" ")[0]}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                </ScrollView>
+                            </FormField>
+                        )}
+
+                        {/* Split type */}
+                        <FormField label="Split Type">
+                            <View style={styles.splitRow}>
+                                {SPLIT_OPTS.map((opt) => (
                                     <TouchableOpacity
-                                        key={m.id}
-                                        onPress={() => setPaidBy(m.id)}
+                                        key={opt.id}
+                                        onPress={() => setSplitType(opt.id)}
                                         style={[
-                                            styles.paidByOpt,
-                                            paidBy === m.id &&
-                                                styles.paidByOptActive,
+                                            styles.splitOpt,
+                                            splitType === opt.id &&
+                                                styles.splitOptActive,
                                         ]}
+                                        activeOpacity={0.8}
                                     >
                                         <Text
                                             style={[
-                                                styles.paidByText,
-                                                paidBy === m.id &&
-                                                    styles.paidByTextActive,
+                                                styles.splitOptTxt,
+                                                splitType === opt.id && {
+                                                    color: COLORS.primary,
+                                                },
                                             ]}
                                         >
-                                            {m.label}
+                                            {opt.label}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
                             </View>
                         </FormField>
-                        <FormField label="Split">
-                            <SplitToggle
-                                value={splitType}
-                                onChange={setSplitType}
+
+                        {/* Date */}
+                        <FormField label="Date (YYYY-MM-DD)">
+                            <Input
+                                value={date}
+                                onChangeText={setDate}
+                                placeholder="2026-03-22"
+                                keyboardType="numeric"
                             />
                         </FormField>
-                        <FormField label="Date">
-                            <Input value={date} onChangeText={setDate} />
-                        </FormField>
+
+                        {/* Note */}
+                        {/* <FormField label="Note (optional)">
+                            <Input
+                                value={note}
+                                onChangeText={setNote}
+                                placeholder="e.g. Monthly electricity"
+                            />
+                        </FormField> */}
+
                         <SubmitBtn
-                            label="✅ Save Expense"
-                            onPress={() => navigation.goBack()}
+                            label={loading ? "..." : "✅ Save Expense"}
+                            onPress={handleSave}
+                            loading={loading}
                         />
                     </View>
+
                     <View style={{ height: 30 }} />
                 </View>
             </ScrollView>
@@ -1118,6 +1914,29 @@ const styles = StyleSheet.create({
         fontSize: SIZES.base,
         color: COLORS.text,
     },
+    // amtBlock: {
+    //     backgroundColor: COLORS.text,
+    //     borderRadius: 16,
+    //     padding: 20,
+    //     alignItems: "center",
+    //     marginBottom: 14,
+    // },
+    // amtLbl: {
+    //     fontFamily: FONTS.dmSans.regular,
+    //     fontSize: SIZES.sm2,
+    //     color: "rgba(255,255,255,0.55)",
+    //     marginBottom: 6,
+    // },
+    // amtInput: {
+    //     fontFamily: FONTS.nunito.black,
+    //     fontSize: 40,
+    //     color: "#fff",
+    //     letterSpacing: -2,
+    //     textAlign: "center",
+    //     minWidth: 120,
+    // },
+
+    // New Style
     amtBlock: {
         backgroundColor: COLORS.text,
         borderRadius: 16,
@@ -1139,6 +1958,118 @@ const styles = StyleSheet.create({
         textAlign: "center",
         minWidth: 120,
     },
+    // AddGroup + GroupAddExpense extra styles
+    errorBox: {
+        backgroundColor: "#FEF2F2",
+        borderRadius: 8,
+        padding: 10,
+        borderLeftWidth: 3,
+        borderLeftColor: COLORS.danger,
+        marginBottom: 12,
+    },
+    errorTxt: {
+        fontFamily: FONTS.dmSans.regular,
+        fontSize: SIZES.base,
+        color: COLORS.danger,
+    },
+    typeRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+    typeOpt: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 10,
+        borderWidth: 1.5,
+        borderColor: COLORS.border,
+        backgroundColor: "#F9FAFB",
+    },
+    typeOptActive: {
+        borderColor: COLORS.primary,
+        backgroundColor: COLORS.primaryUltraLight,
+    },
+    typeOptTxt: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.base,
+        color: COLORS.text2,
+    },
+    addMemberBtn: {
+        width: 44,
+        backgroundColor: COLORS.primary,
+        borderRadius: 10,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    addMemberBtnTxt: {
+        fontFamily: FONTS.nunito.black,
+        fontSize: 24,
+        color: "#fff",
+        lineHeight: 28,
+    },
+    addedMemberRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+    },
+    removeMemberBtn: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: "#FEE2E2",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    groupBanner: {
+        backgroundColor: "#EDE9FE",
+        borderRadius: 10,
+        padding: 10,
+        marginBottom: 12,
+        alignItems: "center",
+    },
+    groupBannerTxt: {
+        fontFamily: FONTS.nunito.extraBold,
+        fontSize: SIZES.md,
+        color: COLORS.accent2,
+    },
+    catChip: {
+        alignItems: "center",
+        gap: 3,
+        padding: 8,
+        borderRadius: 12,
+        borderWidth: 1.5,
+        borderColor: COLORS.border,
+        backgroundColor: "#F9FAFB",
+        minWidth: 60,
+    },
+    catChipActive: {
+        borderColor: COLORS.primary,
+        backgroundColor: COLORS.primaryUltraLight,
+    },
+    catChipTxt: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.sm,
+        color: COLORS.text2,
+    },
+    splitRow: { flexDirection: "row", gap: 8 },
+    splitOpt: {
+        flex: 1,
+        padding: 9,
+        borderRadius: 10,
+        borderWidth: 1.5,
+        borderColor: COLORS.border,
+        backgroundColor: "#F9FAFB",
+        alignItems: "center",
+    },
+    splitOptActive: {
+        borderColor: COLORS.primary,
+        backgroundColor: COLORS.primaryUltraLight,
+    },
+    splitOptTxt: {
+        fontFamily: FONTS.nunito.bold,
+        fontSize: SIZES.sm2,
+        color: COLORS.text2,
+    },
+    // UP New Style
     paidByRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
     paidByOpt: {
         paddingHorizontal: 14,

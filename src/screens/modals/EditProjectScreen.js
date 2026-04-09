@@ -1,1 +1,1 @@
-export { EditProjectScreen as default } from './ModalScreens';
+export { EditProjectScreen as default } from "./ModalScreens";

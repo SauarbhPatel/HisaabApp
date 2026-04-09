@@ -1,0 +1,26 @@
+Project Section 
+    1.Make Project Edit Screen like you make Add Project Details Screen 
+
+Report Screen
+    1.after this Check Reports Api(i was updated check backend Code) and add them in ui  
+    2.also we have filter in report liek( this month last 3 months This Year ) , i want add a custome filer when we click on this show two date input with (date formater like in add project screen have) make sure date should be valid Date 
+
+
+
+
+
+
+
+
+Api Problems 
+    1.Remove Developer From Project
+    2.In Project Section Add a api where we can update devloper role and aggreed Amount
+
+
+//
+
+<KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+</KeyboardAvoidingView>

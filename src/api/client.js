@@ -64,6 +64,7 @@ export async function apiCall(
     } = {},
 ) {
     const url = `${BASE_URL}${endpoint}`;
+    console.log(url);
     const headers = { "Content-Type": "application/json" };
 
     if (auth) {
