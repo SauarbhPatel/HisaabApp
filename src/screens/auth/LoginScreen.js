@@ -9,6 +9,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
+    Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -272,9 +273,18 @@ export default function LoginScreen({ navigation }) {
                 colors={["#0a1f16", "#1a7a5e"]}
                 style={[s.topArt, { paddingTop: insets.top + 20 }]}
             >
-                <View style={s.logoBox}>
+                {/* <View style={s.logoBox}>
                     <Text style={{ fontSize: 30 }}>💸</Text>
-                </View>
+                </View> */}
+                <Image
+                    source={require("../../../assets/hisaab_logo_2_appicon.png")}
+                    style={{
+                        width: 70,
+                        height: 70,
+                    }}
+                    resizeMode="contain"
+                />
+
                 <Text style={s.logoName}>Hisaab</Text>
                 <Text style={s.logoSub}>Welcome back 👋</Text>
             </LinearGradient>

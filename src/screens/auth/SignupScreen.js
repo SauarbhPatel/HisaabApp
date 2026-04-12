@@ -9,6 +9,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
+    Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -337,6 +338,14 @@ export default function SignupScreen({ navigation, route }) {
                     <Text style={{ fontSize: 30 }}>
                         {step === 3 ? "🚀" : isResume ? "🔄" : "💸"}
                     </Text>
+                    {/* <Image
+                        source={require("../../../assets/hisaab_logo_2_appicon.png")}
+                        style={{
+                            width: 70,
+                            height: 70,
+                        }}
+                        resizeMode="contain"
+                    /> */}
                 </View>
                 <Text style={s.logoName}>
                     {isResume
